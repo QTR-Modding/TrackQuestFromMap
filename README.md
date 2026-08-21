@@ -1,18 +1,26 @@
 # Track Quest from Map
 
 Track Quest from Map is a native SFSE plugin that lets you track the quest
-represented by a marker directly from Starfield's map. Version 0.2.2 supports
-the **Surface Map**: hover an inactive quest marker and release the normal
-**Activate/Select** control.
+represented by a marker directly from Starfield's map. Release the normal
+**Activate/Select** control over an inactive quest glyph.
+
+The 0.3.0 development candidate supports three Star Map views:
+
+- **Surface Map** location overlays and large standalone quest markers;
+- **Galaxy view** quest glyphs attached to star systems; and
+- **System view** quest glyphs attached to planets and moons.
 
 Both Surface Map representations are supported:
 
 - the small quest overlay attached to a location; and
 - the large standalone quest marker.
 
-The exact 0.2.2 DLL in this repository's release was verified in-game on Steam
+The exact 0.2.2 Surface-only DLL in this repository's release was verified in-game on Steam
 Starfield 1.16.244.0 with both representations. Quest tracking and the open-map
-marker refresh completed successfully.
+marker refresh completed successfully. Galaxy/System support is not a release
+claim until the exact 0.3.0 DLL hash passes its gameplay matrix. The candidate
+uses Bethesda's own all-state Star Map refresh after a successful Galaxy/System
+track so the mission glyph can update without leaving the view.
 
 ## Requirements
 
@@ -25,8 +33,7 @@ layouts and call sites; a Bethesda update requires a separately audited build.
 
 ## Installation
 
-Install `TrackQuestFromMap-v0.2.2.zip` with a mod manager. Its complete payload
-is:
+Release archives contain one file:
 
 ```text
 SFSE/Plugins/TrackQuestSurfaceNativeOnly.dll
@@ -34,19 +41,20 @@ SFSE/Plugins/TrackQuestSurfaceNativeOnly.dll
 
 Launch Starfield through SFSE.
 
-If upgrading from a pre-0.2.0 prototype, replace the old mod instead of merging
-it. Remove its `surfacemap.swf` and `surfacemap_lrg.swf`; version 0.2.2 is
-DLL-only and must not be combined with those obsolete prototype files.
+The legacy DLL filename is deliberately retained for an in-place upgrade from
+0.2.2; the plugin metadata and public project name are now `TrackQuestFromMap`.
+Replace the old mod instead of merging it. If upgrading from a pre-0.2.0
+prototype, also remove `surfacemap.swf` and `surfacemap_lrg.swf`.
 
 ## Compatibility
 
-Version 0.2.2 ships no SWF, Bethesda plugin, Papyrus script, INI, or Address
+The plugin ships no SWF, Bethesda plugin, Papyrus script, INI, or Address
 Library file. It therefore does not overwrite UI mods. At runtime it reads the
-public Surface Map display hierarchy and marker properties. UI replacements
-remain compatible when they preserve that contract; missing or incompatible
-members fail open to vanilla input.
+public map display hierarchies and marker properties. UI replacements remain
+compatible when they preserve those contracts; missing or incompatible members
+fail open to vanilla input.
 
-Another native plugin patching any of the same three direct call sites is a
+Another native plugin patching any of the same thirteen direct call sites is a
 hard conflict. All signatures and original targets are checked before any
 write, and hook installation is transactional. On a mismatch this plugin
 refuses to install its hooks rather than stacking an unknown patch.
@@ -71,10 +79,10 @@ See [Architecture](docs/ARCHITECTURE.md) for the implementation contracts.
 
 ## Current scope and known limitation
 
-Only the Surface Map is implemented. Galaxy, system, orbital/planet overview,
-and other map views have different native state and marker data. Each new map
-will be added through its own reviewed pull request; support will not be guessed
-from Surface Map layouts.
+Surface, Galaxy, and System views are implemented independently. The Galaxy
+and System resolver acts only on the inactive mission glyph itself, not the
+entire system or planet marker. Orbital/planet overview and other menus remain
+out of scope until their data flow is independently traced.
 
 On a small location marker shared by both an active and inactive quest,
 Starfield exposes an aggregate active flag. Version 0.2.2 fails open instead of
@@ -107,7 +115,7 @@ gameplay-tested release candidate.
 
 ## Development
 
-Surface Map is the reviewed baseline. New menu support and behavioral changes
+Surface Map is the gameplay-tested baseline. New menu support and behavioral changes
 belong in focused pull requests with exact runtime evidence and gameplay
 verification. See [CONTRIBUTING.md](CONTRIBUTING.md) and the
 [release checklist](docs/RELEASE_CHECKLIST.md).

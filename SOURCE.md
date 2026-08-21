@@ -2,12 +2,17 @@
 
 ## Current development branch
 
-The `refactor/qtr-native-conventions` branch pins QTR CommonLibSF commit
-`04a3d88e2925806355000190c9c3a9df586ebf3f`. That five-commit series adds
+The Galaxy/System feature branch pins QTR CommonLibSF commit
+`c741c4a6a29cadf2db1f2eb53a9b62ead060dbd6`. It extends the Surface API series
+at `04a3d88e2925806355000190c9c3a9df586ebf3f` with the verified shared Star Map
+quest-target-tree layout, builder/insertion IDs, Galaxy/System state accessors,
+and the menu-owned all-state quest-target refresh API.
+The underlying five-commit Surface series adds
 the verified input-event ABI correction, maps the generic menu button-event
 handler, exposes quest-instance tracking state, adds raw engine-vector bounds,
 and provides typed Surface Map runtime contracts consumed by the refactor. It
-is development provenance, not a claim about the released 0.2.2 DLL.
+is development provenance, not a claim about the released 0.2.2 DLL or an
+untested 0.3.0 candidate.
 
 ## Released 0.2.2 artifact
 

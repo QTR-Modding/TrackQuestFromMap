@@ -36,11 +36,15 @@ fresh gameplay regression before any versioned release.
 
 - The quest-composition callback runs under a PlayerCharacter-owned
   `BSSpinLock`; perform only bounded primitive/thread-local capture there.
+- The shared Galaxy/System builder and insertion callbacks run under that same
+  lock. Keep their capture fixed-capacity and allocation-free; publish only
+  after the complete builder wrapper returns.
 - The post-gather marker vector is owner-thread-only, non-reentrant, and not
   protected by that lock. Copy its relevant rows synchronously before the
   vanilla caller resumes; never retain a pointer or view.
-- Do not allocate, log, resolve forms, or inspect UI inside the composition
-  callback. Resolve and publish only after native rows are fully owned.
+- Do not allocate, log, resolve forms, or inspect UI inside any composition or
+  insertion callback. Resolve and publish only after native data is fully
+  owned.
 - Copy native and GFx text immediately into bounded owned storage.
 - Queue quest mutation through SFSE's main-thread interface.
 - Re-resolve FormID plus instance ID and recheck state before calling a toggle

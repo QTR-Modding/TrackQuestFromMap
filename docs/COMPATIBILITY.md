@@ -26,17 +26,27 @@ A UI replacer is compatible when it preserves that public hierarchy and
 contract. Missing, differently typed, oversized, or ambiguous data fails open
 to normal input. No UI replacer is patched by this project.
 
+Galaxy/System support additionally reads the public `Markers_mc` root,
+`SystemMarkerContainer_mc` and `BodyMarkerContainer_mc`, marker `bodyID`, and
+the standard `MissionIconContainer` inactive glyph/nameplate hierarchy. The
+inactive glyph is hit-tested at the Stage cursor. A replacer may change art,
+timelines, layout, frame rate, or unrelated menu behavior while preserving
+that public contract. If it replaces the contract, Galaxy/System activation
+fails open and vanilla input continues.
+
 ## Native hook conflicts
 
-Another DLL that replaces any of the same three reviewed direct calls is a hard
-conflict. Version 0.2.2 checks the complete signatures and decoded original
-targets before writing. It allocates all branch islands first, verifies each
-write, and restores all original calls if a transaction cannot complete.
+Another DLL that replaces any of the same thirteen reviewed direct calls is a
+hard conflict. The 0.3.0 candidate checks complete signatures and decoded
+original targets before writing. It allocates all branch islands first,
+verifies each write, and restores all original calls if a transaction cannot
+complete. Input is installed last, after both ownership paths are ready.
 
 ## Runtime compatibility
 
-The 0.2.2 DLL supports only Steam Starfield 1.16.244.0 with SFSE 0.2.21 and the
-matching Address Library. It is layout-dependent and refuses other runtimes.
+Both the released 0.2.2 DLL and 0.3.0 candidate support only Steam Starfield
+1.16.244.0 with SFSE 0.2.21 and the matching Address Library. They are
+layout-dependent and refuse other runtimes.
 
 Adding a runtime requires fresh proof for every relocation, signature, decoded
 target, ABI, structure offset, vtable, lock assumption, and caller path. Do not
@@ -53,8 +63,8 @@ marker, whose active flag and single owner are per quest.
 
 ## Future maps
 
-Galaxy, system, orbital/planet overview, and other map views do not share the
-Surface Map's native row layout or ownership path. Each requires an independent
-data-flow trace and its own pull request. New support should reuse only proven
-generic primitives such as main-thread activation and transactional hook
-installation.
+Galaxy and System views use their independently traced shared quest-target
+tree; they do not reuse Surface rows. Orbital/planet overview and other map
+menus remain unsupported and require their own data-flow trace and pull
+request. New support should reuse only proven generic primitives such as
+main-thread activation and transactional hook installation.

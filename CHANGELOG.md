@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added DLL-only quest tracking for inactive mission glyphs in Galaxy view and
+  System/planet view using the same Activate/Select control as Surface Map.
+- Captured exact quest FormID/instance ownership from Bethesda's shared native
+  quest-target tree and matched it by view-specific system/body ID plus the
+  exact displayed label, without parsing localized text into identity.
+- Added instant bounded hit testing of the inactive Galaxy/System mission glyph;
+  no rollover delay or SWF patch is required.
+- Added the reviewed menu-owned all-state quest-target refresh after successful
+  Galaxy/System tracking; refresh failure cannot undo tracking.
+- Expanded the transactional hook set from three to thirteen guarded direct
+  calls, with input exposed last and full reverse rollback on failure.
+- Extracted shared main-thread quest tracking and revalidation for all views.
 - Moved reusable input, quest, vector-bound, and Surface Map engine contracts
   into focused commits on the QTR CommonLibSF fork.
 - Split the native plugin into entrypoint, hook transaction, Star Map input,
