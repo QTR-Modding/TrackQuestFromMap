@@ -1,0 +1,43 @@
+# IDE
+.vs/
+.vscode/
+.idea/
+*.user
+*.suo
+*.VC.db
+*.opendb
+*.vsidx
+*.sqlite
+
+# Xmake and generated projects
+.xmake/
+build/
+vsxmake*/
+compile_commands.json
+
+# Staging and releases
+dist/
+package/
+release/
+
+# Compiled artifacts
+*.dll
+*.exe
+*.exp
+*.lib
+*.obj
+*.pdb
+*.pch
+*.ilk
+*.zip
+
+# Local environment
+.env
+.env.*
+!.env.example
+
+# Internal reverse-engineering helpers and captures
+tools/
+research/
+logs/
+crashlogs/
