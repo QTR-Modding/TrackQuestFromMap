@@ -2,6 +2,7 @@
 
 #include "Hooks.h"
 
+#include "GalaxyMap.h"
 #include "StarMapInput.h"
 #include "SurfaceMap.h"
 
@@ -9,10 +10,31 @@ namespace TrackQuestSurface::Hooks
 {
 	namespace
 	{
-		// Reviewed against Starfield.exe 1.16.244.0 and its v5 Address Library.
-		constexpr std::ptrdiff_t kQuestGatherCallOffset = 0x77;
-		constexpr std::ptrdiff_t kQuestComposeCallOffset = 0x237;
+		// Plugin-specific direct CALL sites reviewed against Starfield.exe
+		// 1.16.244. Reusable function identities and layouts live in QTR CommonLib.
+		constexpr std::ptrdiff_t kSurfaceGatherCallOffset = 0x77;
+		constexpr std::ptrdiff_t kSurfaceComposeCallOffset = 0x237;
 		constexpr std::ptrdiff_t kStarMapInputCallOffset = 0x10C;
+		constexpr std::ptrdiff_t kQuestTreeComposeCallOffset = 0x118;
+		constexpr std::ptrdiff_t kQuestTreeInsertCallOffsetA = 0x38D;
+		constexpr std::ptrdiff_t kQuestTreeInsertCallOffsetB = 0x580;
+
+		constexpr std::array<std::size_t, 7> kQuestTreeCallRvas{
+			0x16A0FE8,
+			0x16AE219,
+			0x16B78AF,
+			0x16B9420,
+			0x16BA07C,
+			0x16BB1DA,
+			0x16BE91E
+		};
+
+		struct CallPatch
+		{
+			std::uintptr_t                                    address{};
+			std::uintptr_t                                    branch{};
+			std::array<std::uint8_t, sizeof(REL::ASM::CALL5)> original{};
+		};
 
 		[[nodiscard]] bool IsRel32Reachable(
 			const std::uintptr_t a_callsite,
@@ -36,66 +58,152 @@ namespace TrackQuestSurface::Hooks
 
 		template <std::size_t N>
 		[[nodiscard]] bool Matches(
-			const std::uintptr_t              a_address,
+			const std::uintptr_t               a_address,
 			const std::array<std::uint8_t, N>& a_bytes) noexcept
 		{
 			return std::memcmp(
-				reinterpret_cast<const void*>(a_address),
-				a_bytes.data(),
-				a_bytes.size()) == 0;
+					   reinterpret_cast<const void*>(a_address),
+					   a_bytes.data(),
+					   a_bytes.size()) == 0;
 		}
 
 		template <std::size_t N>
 		[[nodiscard]] bool Restore(
-			const std::uintptr_t              a_address,
+			const std::uintptr_t               a_address,
 			const std::array<std::uint8_t, N>& a_original) noexcept
 		{
 			return REL::WriteSafe(a_address, a_original.data(), a_original.size()) &&
 			       Matches(a_address, a_original);
+		}
+
+		[[nodiscard]] bool ValidateCallTarget(
+			const std::uintptr_t   a_callsite,
+			const std::uintptr_t   a_expected,
+			const std::string_view a_name)
+		{
+			const auto actual = REL::ASM::CALL5::TARGET(a_callsite);
+			if (actual == a_expected) {
+				return true;
+			}
+			logger::error(
+				"{} target mismatch: expected 0x{:X}, found 0x{:X}",
+				a_name,
+				a_expected,
+				actual);
+			return false;
 		}
 	}
 
 	bool Install() noexcept
 	{
 		try {
-			const auto gatherCallsite =
+			const auto surfaceGatherCallsite =
 				RE::ID::StarMap::SurfaceMapState::RebuildSurfaceMarkers.address() +
-				kQuestGatherCallOffset;
-			const auto composeCallsite =
+				kSurfaceGatherCallOffset;
+			const auto surfaceComposeCallsite =
 				RE::ID::StarMap::SurfaceMapState::GatherSurfaceQuestTargets.address() +
-				kQuestComposeCallOffset;
+				kSurfaceComposeCallOffset;
 			const auto inputCallsite =
 				RE::ID::StarMap::StarMapMenu::OnButtonEvent.address() + kStarMapInputCallOffset;
 
-			const auto expectedGatherTarget =
+			const auto questTreeBuildTarget = RE::ID::StarMap::BuildQuestTargetTree.address();
+			const auto questTreeComposeTarget = RE::ID::StarMap::ComposeQuestTargetMarker.address();
+			const auto questTreeInsertTarget = RE::ID::StarMap::InsertQuestTargetMarker.address();
+			const auto questTreeComposeCallsite =
+				questTreeBuildTarget + kQuestTreeComposeCallOffset;
+			const auto questTreeInsertCallsiteA =
+				questTreeComposeTarget + kQuestTreeInsertCallOffsetA;
+			const auto questTreeInsertCallsiteB =
+				questTreeComposeTarget + kQuestTreeInsertCallOffsetB;
+
+			std::array<std::uintptr_t, kQuestTreeCallRvas.size()> questTreeCallsites{};
+			for (std::size_t index = 0; index < kQuestTreeCallRvas.size(); ++index) {
+				questTreeCallsites[index] = REL::Offset{ kQuestTreeCallRvas[index] }.address();
+			}
+
+			const auto surfaceGatherTarget =
 				RE::ID::StarMap::SurfaceMapState::GatherSurfaceQuestTargets.address();
-			const auto expectedComposeTarget =
+			const auto surfaceComposeTarget =
 				RE::ID::StarMap::ComposeSurfaceQuestTarget.address();
-			const auto expectedInputTarget = RE::ID::IMenu::OnButtonEvent.address();
+			const auto inputTarget = RE::ID::IMenu::OnButtonEvent.address();
 
 			if (!REL::Pattern<
 					"48 8B CF E8 E4 27 00 00 48 83 BF E8 08 00 00 00">()
-					.match(gatherCallsite - 3)) {
-				logger::error("SurfaceMap gather-hook signature mismatch at 0x{:X}", gatherCallsite);
-				return false;
-			}
-			if (!REL::Pattern<"48 8B 13 48 8D 4D C7 E8 D4 00 00 00">()
-					.match(composeCallsite - 7)) {
-				logger::error("SurfaceMap compose-hook signature mismatch at 0x{:X}", composeCallsite);
+					.match(surfaceGatherCallsite - 3) ||
+				!REL::Pattern<"48 8B 13 48 8D 4D C7 E8 D4 00 00 00">()
+					.match(surfaceComposeCallsite - 7)) {
+				logger::error("Surface Map ownership-hook signature mismatch");
 				return false;
 			}
 			if (!REL::Pattern<
 					"77 0F 84 C0 75 0B 48 8B D3 49 8B CF E8 6F 8F E9 00 40 84 ED">()
-					.match(inputCallsite - 12)) {
-				logger::error("Star Map input-hook signature mismatch at 0x{:X}", inputCallsite);
+					.match(inputCallsite - 12) ||
+				!REL::Pattern<
+					"48 89 5C 24 18 55 56 57 41 54 41 55 41 56 41 57">()
+					.match(inputTarget)) {
+				logger::error("Star Map input-hook signature mismatch");
 				return false;
 			}
+
+			for (std::size_t index = 0; index + 1 < questTreeCallsites.size(); ++index) {
+				if (!REL::Pattern<
+						"48 8D 54 24 ?? 48 8B 0D ?? ?? ?? ?? E8 ?? ?? ?? ??">()
+						.match(questTreeCallsites[index] - 12)) {
+					logger::error(
+						"Star Map quest-tree caller {} signature mismatch at 0x{:X}",
+						index,
+						questTreeCallsites[index]);
+					return false;
+				}
+			}
 			if (!REL::Pattern<
-					"48 89 5C 24 18 55 56 57 41 54 41 55 41 56 41 57">()
-					.match(expectedInputTarget)) {
-				logger::error(
-					"Star Map vanilla dispatcher signature mismatch at 0x{:X}",
-					expectedInputTarget);
+					"48 8D 55 B0 48 8B 0D ?? ?? ?? ?? E8 ?? ?? ?? ??">()
+					.match(questTreeCallsites.back() - 11) ||
+				!REL::Pattern<
+					"48 8B 13 48 8D 4C 24 20 E8 83 A1 FF FF 85 C0">()
+					.match(questTreeComposeCallsite - 8) ||
+				!REL::Pattern<
+					"4C 8D 45 A0 48 8D 55 00 48 8D 4B 28 E8 3E 58 00 00 90">()
+					.match(questTreeInsertCallsiteA - 12) ||
+				!REL::Pattern<
+					"4C 8D 45 B8 48 8D 55 20 48 8D 4B 28 E8 4B 56 00 00 90">()
+					.match(questTreeInsertCallsiteB - 12) ||
+				!REL::Pattern<
+					"48 89 54 24 10 48 89 4C 24 08 53 55 56 57 41 54">()
+					.match(questTreeBuildTarget)) {
+				logger::error("Star Map quest-tree ownership-hook signature mismatch");
+				return false;
+			}
+
+			for (std::size_t index = 0; index < questTreeCallsites.size(); ++index) {
+				if (!ValidateCallTarget(
+						questTreeCallsites[index],
+						questTreeBuildTarget,
+						"Star Map quest-tree caller")) {
+					return false;
+				}
+			}
+			if (!ValidateCallTarget(
+					questTreeComposeCallsite,
+					questTreeComposeTarget,
+					"Star Map quest-tree compose") ||
+				!ValidateCallTarget(
+					questTreeInsertCallsiteA,
+					questTreeInsertTarget,
+					"Star Map quest-tree insert A") ||
+				!ValidateCallTarget(
+					questTreeInsertCallsiteB,
+					questTreeInsertTarget,
+					"Star Map quest-tree insert B") ||
+				!ValidateCallTarget(
+					surfaceGatherCallsite,
+					surfaceGatherTarget,
+					"Surface Map gather") ||
+				!ValidateCallTarget(
+					surfaceComposeCallsite,
+					surfaceComposeTarget,
+					"Surface Map compose") ||
+				!ValidateCallTarget(inputCallsite, inputTarget, "Star Map input")) {
 				return false;
 			}
 
@@ -108,151 +216,128 @@ namespace TrackQuestSurface::Hooks
 					.match(RE::ID::StarMap::SurfaceMapState::Refresh.address());
 			if (!surfaceRefreshValidated) {
 				logger::warn(
-					"Surface Map repaint signatures do not match; quest tracking will remain enabled but visual refresh is disabled");
+					"Surface Map repaint signatures do not match; tracking stays enabled but forced repaint is disabled");
+			}
+			const bool starMapRefreshValidated =
+				REL::Pattern<
+					"48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 30">()
+					.match(RE::ID::StarMap::StarMapMenu::RefreshQuestTargets.address());
+			if (!starMapRefreshValidated) {
+				logger::warn(
+					"Galaxy/System repaint signature does not match; tracking stays enabled but forced repaint is disabled");
 			}
 
-			const auto actualGatherTarget = REL::ASM::CALL5::TARGET(gatherCallsite);
-			if (actualGatherTarget != expectedGatherTarget) {
-				logger::error(
-					"SurfaceMap gather-hook target mismatch: expected 0x{:X}, found 0x{:X}",
-					expectedGatherTarget,
-					actualGatherTarget);
-				return false;
-			}
-			const auto actualComposeTarget = REL::ASM::CALL5::TARGET(composeCallsite);
-			if (actualComposeTarget != expectedComposeTarget) {
-				logger::error(
-					"SurfaceMap compose-hook target mismatch: expected 0x{:X}, found 0x{:X}",
-					expectedComposeTarget,
-					actualComposeTarget);
-				return false;
-			}
-			const auto actualInputTarget = REL::ASM::CALL5::TARGET(inputCallsite);
-			if (actualInputTarget != expectedInputTarget) {
-				logger::error(
-					"Star Map input-hook target mismatch: expected 0x{:X}, found 0x{:X}",
-					expectedInputTarget,
-					actualInputTarget);
-				return false;
-			}
-
+			GalaxyMap::SetOriginalFunctions(
+				reinterpret_cast<GalaxyMap::BuildQuestTargetTree>(questTreeBuildTarget),
+				reinterpret_cast<GalaxyMap::ComposeQuestTargetMarker>(questTreeComposeTarget),
+				reinterpret_cast<GalaxyMap::InsertQuestTargetMarker>(questTreeInsertTarget),
+				starMapRefreshValidated);
 			SurfaceMap::SetOriginalFunctions(
-				reinterpret_cast<SurfaceMap::BuildSurfaceMarkers>(expectedGatherTarget),
-				reinterpret_cast<SurfaceMap::ComposeQuestTarget>(expectedComposeTarget),
+				reinterpret_cast<SurfaceMap::BuildSurfaceMarkers>(surfaceGatherTarget),
+				reinterpret_cast<SurfaceMap::ComposeQuestTarget>(surfaceComposeTarget),
 				surfaceRefreshValidated);
 			StarMapInput::SetOriginalDispatcher(
-				reinterpret_cast<StarMapInput::DispatchButtonEvent>(expectedInputTarget));
+				reinterpret_cast<StarMapInput::DispatchButtonEvent>(inputTarget));
 
-			auto& trampoline = REL::GetTrampoline();
-			constexpr std::size_t requiredTrampolineBytes = 42;
+			auto&                 trampoline = REL::GetTrampoline();
+			constexpr std::size_t requiredTrampolineBytes = 84;
 			if (trampoline.free_size() < requiredTrampolineBytes) {
 				logger::error(
-					"SurfaceMap hooks require {} trampoline bytes; {} remain",
+					"Track Quest from Map hooks require {} trampoline bytes; {} remain",
 					requiredTrampolineBytes,
 					trampoline.free_size());
 				return false;
 			}
 
 			// Allocate every branch island before touching executable callsites.
-			const auto composeBranch = trampoline.allocate_branch5(
+			const auto questTreeInsertBranch = trampoline.allocate_branch5(
+				reinterpret_cast<std::uintptr_t>(GalaxyMap::CaptureInsertedQuestTargetMarker));
+			const auto questTreeComposeBranch = trampoline.allocate_branch5(
+				reinterpret_cast<std::uintptr_t>(GalaxyMap::CaptureAndComposeQuestTargetMarker));
+			const auto questTreeBuildBranch = trampoline.allocate_branch5(
+				reinterpret_cast<std::uintptr_t>(GalaxyMap::BuildAndPublishQuestTargetTree));
+			const auto surfaceComposeBranch = trampoline.allocate_branch5(
 				reinterpret_cast<std::uintptr_t>(SurfaceMap::CaptureAndComposeQuestTarget));
-			const auto gatherBranch = trampoline.allocate_branch5(
+			const auto surfaceGatherBranch = trampoline.allocate_branch5(
 				reinterpret_cast<std::uintptr_t>(SurfaceMap::BuildAndSnapshot));
 			const auto inputBranch = trampoline.allocate_branch5(
 				reinterpret_cast<std::uintptr_t>(StarMapInput::OnStarMapButton));
 
-			if (!IsRel32Reachable(composeCallsite, composeBranch) ||
-				!IsRel32Reachable(gatherCallsite, gatherBranch) ||
-				!IsRel32Reachable(inputCallsite, inputBranch)) {
-				logger::error("One or more allocated hook branches are outside signed rel32 reach");
-				return false;
+			std::array<CallPatch, 13> patches{};
+			std::size_t               patchIndex{};
+			patches[patchIndex++] = { questTreeInsertCallsiteA, questTreeInsertBranch };
+			patches[patchIndex++] = { questTreeInsertCallsiteB, questTreeInsertBranch };
+			patches[patchIndex++] = { questTreeComposeCallsite, questTreeComposeBranch };
+			for (const auto callsite : questTreeCallsites) {
+				patches[patchIndex++] = { callsite, questTreeBuildBranch };
+			}
+			patches[patchIndex++] = { surfaceComposeCallsite, surfaceComposeBranch };
+			patches[patchIndex++] = { surfaceGatherCallsite, surfaceGatherBranch };
+			patches[patchIndex++] = { inputCallsite, inputBranch };
+			if (patchIndex != patches.size()) {
+				std::terminate();
 			}
 
-			const REL::ASM::CALL5 composePatch{ composeCallsite, composeBranch };
-			const REL::ASM::CALL5 gatherPatch{ gatherCallsite, gatherBranch };
-			const REL::ASM::CALL5 inputPatch{ inputCallsite, inputBranch };
-
-			std::array<std::uint8_t, sizeof(REL::ASM::CALL5)> originalComposeCall{};
-			std::array<std::uint8_t, sizeof(REL::ASM::CALL5)> originalGatherCall{};
-			std::array<std::uint8_t, sizeof(REL::ASM::CALL5)> originalInputCall{};
-			std::memcpy(
-				originalComposeCall.data(),
-				reinterpret_cast<const void*>(composeCallsite),
-				originalComposeCall.size());
-			std::memcpy(
-				originalGatherCall.data(),
-				reinterpret_cast<const void*>(gatherCallsite),
-				originalGatherCall.size());
-			std::memcpy(
-				originalInputCall.data(),
-				reinterpret_cast<const void*>(inputCallsite),
-				originalInputCall.size());
+			for (auto& patch : patches) {
+				if (!IsRel32Reachable(patch.address, patch.branch)) {
+					logger::error("Allocated hook branch is outside signed rel32 reach at 0x{:X}", patch.address);
+					return false;
+				}
+				std::memcpy(
+					patch.original.data(),
+					reinterpret_cast<const void*>(patch.address),
+					patch.original.size());
+			}
 
 			try {
-				const bool composeWritten =
-					REL::WriteSafeData(composeCallsite, composePatch) &&
-					std::memcmp(
-						reinterpret_cast<const void*>(composeCallsite),
-						std::addressof(composePatch),
-						sizeof(composePatch)) == 0 &&
-					REL::ASM::CALL5::TARGET(composeCallsite) == composeBranch;
-				const bool gatherWritten =
-					composeWritten &&
-					REL::WriteSafeData(gatherCallsite, gatherPatch) &&
-					std::memcmp(
-						reinterpret_cast<const void*>(gatherCallsite),
-						std::addressof(gatherPatch),
-						sizeof(gatherPatch)) == 0 &&
-					REL::ASM::CALL5::TARGET(gatherCallsite) == gatherBranch;
-				const bool inputWritten =
-					gatherWritten &&
-					REL::WriteSafeData(inputCallsite, inputPatch) &&
-					std::memcmp(
-						reinterpret_cast<const void*>(inputCallsite),
-						std::addressof(inputPatch),
-						sizeof(inputPatch)) == 0 &&
-					REL::ASM::CALL5::TARGET(inputCallsite) == inputBranch;
-				if (!composeWritten || !gatherWritten || !inputWritten) {
-					throw std::runtime_error("one or more hook writes failed verification");
+				// Fail-safe exposure order: inert insertion wrappers first; their owning
+				// compose/build wrappers next; Surface ownership next; input last.
+				for (const auto& patch : patches) {
+					const REL::ASM::CALL5 call{ patch.address, patch.branch };
+					const bool            written =
+						REL::WriteSafeData(patch.address, call) &&
+						std::memcmp(
+							reinterpret_cast<const void*>(patch.address),
+							std::addressof(call),
+							sizeof(call)) == 0 &&
+						REL::ASM::CALL5::TARGET(patch.address) == patch.branch;
+					if (!written) {
+						throw std::runtime_error("one or more hook writes failed verification");
+					}
 				}
 			} catch (...) {
-				// Reverse the installation order and do not short-circuit: every original
-				// CALL is restored and read back even if an earlier restoration fails.
-				const bool inputRestored = Restore(inputCallsite, originalInputCall);
-				const bool gatherRestored = Restore(gatherCallsite, originalGatherCall);
-				const bool composeRestored = Restore(composeCallsite, originalComposeCall);
-				if (!inputRestored || !gatherRestored || !composeRestored) {
+				bool restored = true;
+				for (auto iterator = patches.rbegin(); iterator != patches.rend(); ++iterator) {
+					restored = Restore(iterator->address, iterator->original) && restored;
+				}
+				if (!restored) {
 					try {
 						logger::critical(
-							"Could not restore original SurfaceMap/input callsites after hook installation failure");
+							"Could not restore original Track Quest from Map callsites after installation failure");
 					} catch (...) {
 					}
 					std::terminate();
 				}
-				logger::error(
-					"SurfaceMap/input hook transaction failed; all original calls restored");
+				logger::error("Hook transaction failed; all original calls restored");
 				return false;
 			}
 
 			try {
 				logger::info(
-					"Installed transactional SurfaceMap hooks: gather=0x{:X}, compose=0x{:X}, input=0x{:X}",
-					gatherCallsite,
-					composeCallsite,
+					"Installed transactional Surface/Galaxy/System hooks: callsites={}, input=0x{:X}",
+					patches.size(),
 					inputCallsite);
 			} catch (...) {
-				// Logging cannot turn a successfully committed hook set into a reported
-				// plugin-load failure.
 			}
 			return true;
 		} catch (const std::exception& error) {
 			try {
-				logger::error("Could not install SurfaceMap/input hooks: {}", error.what());
+				logger::error("Could not install Track Quest from Map hooks: {}", error.what());
 			} catch (...) {
 			}
 		} catch (...) {
 			try {
-				logger::error("Could not install SurfaceMap/input hooks");
+				logger::error("Could not install Track Quest from Map hooks");
 			} catch (...) {
 			}
 		}

@@ -21,7 +21,7 @@ local commonlibsf = path.join(os.projectdir(), "lib", "commonlibsf")
 includes(commonlibsf)
 
 set_project("TrackQuestFromMap")
-set_version("0.2.2")
+set_version("0.3.0")
 set_license("GPL-3.0-or-later")
 set_languages("c++23")
 set_warnings("allextra")
@@ -37,13 +37,17 @@ target("TrackQuestSurfaceNativeOnly")
     add_deps("commonlibsf")
     add_files(
         "src/plugin.cpp",
+		"src/GalaxyMap.cpp",
         "src/Hooks.cpp",
+        "src/QuestTracking.cpp",
         "src/StarMapInput.cpp",
         "src/SurfaceMap.cpp"
     )
     add_headerfiles(
         "src/PCH.h",
+		"src/GalaxyMap.h",
         "src/Hooks.h",
+        "src/QuestTracking.h",
         "src/StarMapInput.h",
         "src/SurfaceMap.h"
     )

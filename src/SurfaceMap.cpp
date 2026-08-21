@@ -2,6 +2,8 @@
 
 #include "SurfaceMap.h"
 
+#include "QuestTracking.h"
+
 namespace TrackQuestSurface::SurfaceMap
 {
 	namespace
@@ -18,17 +20,17 @@ namespace TrackQuestSurface::SurfaceMap
 
 		struct MarkerRecord
 		{
-			std::uint32_t                 markerHandleBits{};
+			std::uint32_t                  markerHandleBits{};
 			RE::StarMap::SurfaceMarkerType markerType{};
-			bool                          isLocation{};
-			bool                          hasQuestTarget{};
-			bool                          questActive{};
-			std::string                   nameText;
-			std::string                   extraText;
-			std::string                   questTargetText;
-			std::size_t                   rawOwnerCount{};
-			std::optional<QuestKey>       visibleOwner;
-			std::vector<QuestKey>         owners;
+			bool                           isLocation{};
+			bool                           hasQuestTarget{};
+			bool                           questActive{};
+			std::string                    nameText;
+			std::string                    extraText;
+			std::string                    questTargetText;
+			std::size_t                    rawOwnerCount{};
+			std::optional<QuestKey>        visibleOwner;
+			std::vector<QuestKey>          owners;
 		};
 
 		struct CopiedMarkerRecord
@@ -68,7 +70,7 @@ namespace TrackQuestSurface::SurfaceMap
 
 		struct CapturedQuestSlot
 		{
-			QuestKey          key;
+			QuestKey           key;
 			CapturedQuestState state{};
 		};
 
@@ -78,11 +80,11 @@ namespace TrackQuestSurface::SurfaceMap
 		struct QuestPairCapture
 		{
 			std::array<CapturedQuestSlot, kQuestCaptureSlotCount> slots{};
-			std::size_t contributorCalls{};
-			std::size_t uniqueForms{};
-			std::size_t ambiguousForms{};
-			bool        overflow{};
-			bool        invalidInvocation{};
+			std::size_t                                           contributorCalls{};
+			std::size_t                                           uniqueForms{};
+			std::size_t                                           ambiguousForms{};
+			bool                                                  overflow{};
+			bool                                                  invalidInvocation{};
 
 			void Reset() noexcept
 			{
@@ -103,7 +105,7 @@ namespace TrackQuestSurface::SurfaceMap
 				}
 
 				constexpr std::uint32_t goldenRatio = 0x9E3779B1U;
-				const auto first =
+				const auto              first =
 					static_cast<std::size_t>(a_key.formID * goldenRatio) &
 					(kQuestCaptureSlotCount - 1);
 				for (std::size_t probe = 0; probe < kQuestCaptureSlotCount; ++probe) {
@@ -136,7 +138,7 @@ namespace TrackQuestSurface::SurfaceMap
 				}
 
 				constexpr std::uint32_t goldenRatio = 0x9E3779B1U;
-				const auto first =
+				const auto              first =
 					static_cast<std::size_t>(a_formID * goldenRatio) &
 					(kQuestCaptureSlotCount - 1);
 				for (std::size_t probe = 0; probe < kQuestCaptureSlotCount; ++probe) {
@@ -158,10 +160,10 @@ namespace TrackQuestSurface::SurfaceMap
 		// sentinel handle. Preserve every row; a handle alone is not a unique key.
 		using MarkerCache = std::vector<MarkerRecord>;
 
-		std::mutex cacheMutex;
-		MarkerCache markerCache;
-		BuildSurfaceMarkers originalBuildSurfaceMarkers{};
-		ComposeQuestTarget  originalComposeQuestTarget{};
+		std::mutex                     cacheMutex;
+		MarkerCache                    markerCache;
+		BuildSurfaceMarkers            originalBuildSurfaceMarkers{};
+		ComposeQuestTarget             originalComposeQuestTarget{};
 		thread_local QuestPairCapture  threadQuestCapture;
 		thread_local QuestPairCapture* activeQuestCapture{};
 		thread_local std::size_t       surfaceGatherDepth{};
@@ -224,9 +226,9 @@ namespace TrackQuestSurface::SurfaceMap
 			}
 
 			const auto& markers = a_surfaceState->surfaceMarkers;
-			const auto markerBegin = reinterpret_cast<std::uintptr_t>(markers.begin());
-			const auto markerEnd = reinterpret_cast<std::uintptr_t>(markers.end());
-			const auto markerCapacity =
+			const auto  markerBegin = reinterpret_cast<std::uintptr_t>(markers.begin());
+			const auto  markerEnd = reinterpret_cast<std::uintptr_t>(markers.end());
+			const auto  markerCapacity =
 				reinterpret_cast<std::uintptr_t>(markers.capacity_end());
 			if (!markerBegin || markerEnd < markerBegin || markerCapacity < markerEnd ||
 				(markerEnd - markerBegin) % sizeof(RE::StarMap::SurfaceMarkerStaticData) != 0 ||
@@ -245,7 +247,7 @@ namespace TrackQuestSurface::SurfaceMap
 
 			for (std::size_t index = 0; index < copied.markerCount; ++index) {
 				const auto& marker = markers.begin()[index];
-				const auto ownerBegin =
+				const auto  ownerBegin =
 					reinterpret_cast<std::uintptr_t>(marker.questOwners.begin());
 				const auto ownerEnd =
 					reinterpret_cast<std::uintptr_t>(marker.questOwners.end());
@@ -308,21 +310,6 @@ namespace TrackQuestSurface::SurfaceMap
 			markerCache = std::move(a_next);
 		}
 
-		[[nodiscard]] RE::TESQuest* ResolveQuest(const QuestKey& a_key) noexcept
-		{
-			auto* quest = RE::TESForm::LookupByID<RE::TESQuest>(a_key.formID);
-			if (!quest || quest->GetInstanceKey() != a_key) {
-				return nullptr;
-			}
-			return quest;
-		}
-
-		[[nodiscard]] bool IsInactiveTrackableQuest(const QuestKey& a_key) noexcept
-		{
-			const auto* quest = ResolveQuest(a_key);
-			return quest && quest->IsRunning() && !quest->IsStopped() && !quest->IsTracked();
-		}
-
 		void RebuildCurrentSurfaceMap() noexcept
 		{
 			if (!surfaceRefreshValidated) {
@@ -378,7 +365,7 @@ namespace TrackQuestSurface::SurfaceMap
 
 		void SnapshotMarkerOwners(
 			RE::StarMap::SurfaceMapState* a_surfaceState,
-			const QuestPairCapture&        a_capture)
+			const QuestPairCapture&       a_capture)
 		{
 			// Phase A is the only phase that touches the owner-thread-only native
 			// vectors. It copies all text and FormIDs before this function resolves
@@ -428,7 +415,7 @@ namespace TrackQuestSurface::SurfaceMap
 					// Preserve order across deduplication: Q1,Q2,Q1 represents Q1.
 					visibleFormID = formID;
 					const auto key = a_capture.Resolve(formID);
-					if (!key || !ResolveQuest(*key)) {
+					if (!key || !QuestTracking::ResolveQuest(*key)) {
 						valid = false;
 						break;
 					}
@@ -674,49 +661,6 @@ namespace TrackQuestSurface::SurfaceMap
 			return owner;
 		}
 
-		void ActivateOnMainThread(const QuestKey a_key) noexcept
-		{
-			try {
-				// The engine helper toggles tracking, so this second check is mandatory.
-				// It also makes duplicate mouse/Select requests harmless.
-				auto* quest = ResolveQuest(a_key);
-				if (!quest || !quest->IsRunning() || quest->IsStopped() || quest->IsTracked()) {
-					logger::warn(
-						"Skipped stale/already-active quest 0x{:08X}, instance={}",
-						a_key.formID,
-						a_key.instanceID);
-					return;
-				}
-
-				quest->ToggleTracking();
-				quest = ResolveQuest(a_key);
-				if (quest && quest->IsTracked()) {
-					try {
-						logger::info(
-							"Tracked SurfaceMap quest 0x{:08X}, instance={}",
-							a_key.formID,
-							a_key.instanceID);
-					} catch (...) {
-					}
-					RebuildCurrentSurfaceMap();
-				} else {
-					logger::warn(
-						"Vanilla helper rejected quest 0x{:08X}, instance={}",
-						a_key.formID,
-						a_key.instanceID);
-				}
-			} catch (const std::exception& error) {
-				try {
-					logger::error("Queued Track Quest task failed: {}", error.what());
-				} catch (...) {
-				}
-			} catch (...) {
-				try {
-					logger::error("Queued Track Quest task failed unexpectedly");
-				} catch (...) {
-				}
-			}
-		}
 	}
 
 	void SetOriginalFunctions(
@@ -756,26 +700,14 @@ namespace TrackQuestSurface::SurfaceMap
 				return false;
 			}
 
-			// ResolveRequest releases cacheMutex before any live form lookup. The
-			// queued task repeats this exact check because tracking is a toggle.
-			if (!IsInactiveTrackableQuest(*owner)) {
-				logger::warn(
-					"Rejected stale/already-active {} SurfaceMap quest 0x{:08X}, instance={} before queue",
-					a_request.variant == MarkerVariant::kLargeNameplate ?
-						"large-nameplate" :
-						"quest-target",
-					owner->formID,
-					owner->instanceID);
+			// ResolveRequest releases cacheMutex before the shared live-state check.
+			// The queued task repeats it because the vanilla helper toggles tracking.
+			if (!QuestTracking::QueueTrack(
+					*owner,
+					QuestTracking::Source::kSurface,
+					RebuildCurrentSurfaceMap)) {
 				return false;
 			}
-
-			const auto* tasks = SFSE::GetTaskInterface();
-			if (!tasks) {
-				logger::error("SFSE TaskInterface is unavailable");
-				return false;
-			}
-
-			tasks->AddTask([key = *owner] { ActivateOnMainThread(key); });
 			try {
 				logger::info(
 					"Accepted {} SurfaceMap marker 0x{:08X}; queued quest 0x{:08X}, instance={}",
