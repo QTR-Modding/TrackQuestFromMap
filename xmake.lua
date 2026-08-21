@@ -17,7 +17,7 @@ if is_plat("windows") then
     })
 end
 
-local commonlibsf = os.getenv("COMMONLIBSF_PATH") or "lib/commonlibsf"
+local commonlibsf = path.join(os.projectdir(), "lib", "commonlibsf")
 includes(commonlibsf)
 
 set_project("TrackQuestFromMap")
@@ -32,10 +32,21 @@ add_rules("plugin.vsxmake.autoupdate")
 target("TrackQuestSurfaceNativeOnly")
     set_kind("shared")
     set_arch("x64")
+    set_pcxxheader("src/PCH.h")
     add_defines("_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING")
     add_deps("commonlibsf")
-    add_files("src/*.cpp")
-    add_headerfiles("src/*.h")
+    add_files(
+        "src/plugin.cpp",
+        "src/Hooks.cpp",
+        "src/StarMapInput.cpp",
+        "src/SurfaceMap.cpp"
+    )
+    add_headerfiles(
+        "src/PCH.h",
+        "src/Hooks.h",
+        "src/StarMapInput.h",
+        "src/SurfaceMap.h"
+    )
     add_includedirs("src")
 
     -- Deliberately do not apply CommonLibSF's plugin packaging rule. This
