@@ -1,5 +1,16 @@
 # Corresponding source and build provenance
 
+## Current development branch
+
+The `refactor/qtr-native-conventions` branch pins QTR CommonLibSF commit
+`04a3d88e2925806355000190c9c3a9df586ebf3f`. That five-commit series adds
+the verified input-event ABI correction, maps the generic menu button-event
+handler, exposes quest-instance tracking state, adds raw engine-vector bounds,
+and provides typed Surface Map runtime contracts consumed by the refactor. It
+is development provenance, not a claim about the released 0.2.2 DLL.
+
+## Released 0.2.2 artifact
+
 The distributed `TrackQuestSurfaceNativeOnly.dll` statically incorporates code
 from these exact revisions:
 
