@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Moved reusable input, quest, vector-bound, and Surface Map engine contracts
+  into focused commits on the QTR CommonLibSF fork.
+- Split the native plugin into entrypoint, hook transaction, Star Map input,
+  and Surface Map ownership/activation units with a real `PCH.h` and QTR
+  `logger::` usage.
+- Tightened native marker capture into an owner-thread copy phase followed by
+  form resolution, validation, logging, and cache publication from owned data.
+- Added pinned Windows CI plus deterministic recursive-source and one-DLL
+  payload verification. CI does not publish artifacts or claim gameplay proof.
+- No development DLL from this refactor is a release candidate until its exact
+  hash passes the gameplay regression matrix.
+
 ## 0.2.2 — 2026-08-21
 
 - Added support for large standalone Surface Map quest markers.

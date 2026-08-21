@@ -1,5 +1,9 @@
 # Release verification manifest
 
+This manifest records the immutable gameplay-tested `v0.2.2` release at source
+commit `77671bb579fe882996c44947c30d2756c186ed07`. Development-branch builds
+have different source and DLL hashes and are not covered by this release proof.
+
 - Public name: Track Quest from Map
 - Internal plugin/DLL name: TrackQuestSurfaceNativeOnly
 - Version: 0.2.2.0

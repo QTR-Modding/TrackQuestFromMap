@@ -3,7 +3,9 @@
 ## Style
 
 - C++23, Windows x64, all-extra warnings.
-- Two-space indentation and attached opening braces.
+- Match the surrounding file and keep format-only churn out of behavior or ABI
+  changes. Canonical workspace guidance does not yet choose one indentation or
+  brace-placement standard, so this repository does not invent one.
 - Types and functions use `PascalCase`; variables use `lowerCamelCase`;
   constants and enumerators use `kPascalCase`; parameters use `a_name`.
 - Use fixed-width integer types at ABI and serialized boundaries.
@@ -11,11 +13,14 @@
   offsets, signatures, and bounds.
 - Reusable engine mappings belong in QTR CommonLibSF; plugin-specific hooks and
   safety policy remain here.
+- Missing reusable engine contracts are added as focused, upstream-ready
+  commits to the QTR CommonLibSF fork and consumed by an exact gitlink. Never
+  open an upstream CommonLibSF pull request without explicit permission.
 
-The tagged 0.2.2 source deliberately stays byte-identical to the gameplay-
-tested prototype source. It predates the preferred uppercase `PCH.h` and
-`logger::` style. Normalize those in a separate no-behavior-change pull request
-and repeat binary plus gameplay verification.
+The tagged 0.2.2 source remains byte-identical to the gameplay-tested prototype
+source. The development refactor uses the required uppercase `PCH.h`, focused
+translation units, and QTR `logger::` style. Its changed DLL hash requires a
+fresh gameplay regression before any versioned release.
 
 ## ABI rules
 
@@ -29,9 +34,13 @@ and repeat binary plus gameplay verification.
 
 ## Locks, ownership, and threads
 
-- Under an engine lock, perform bounded primitive/thread-local capture only.
-- Do not allocate, log, resolve forms, inspect UI, or retain an engine pointer
-  under that lock.
+- The quest-composition callback runs under a PlayerCharacter-owned
+  `BSSpinLock`; perform only bounded primitive/thread-local capture there.
+- The post-gather marker vector is owner-thread-only, non-reentrant, and not
+  protected by that lock. Copy its relevant rows synchronously before the
+  vanilla caller resumes; never retain a pointer or view.
+- Do not allocate, log, resolve forms, or inspect UI inside the composition
+  callback. Resolve and publish only after native rows are fully owned.
 - Copy native and GFx text immediately into bounded owned storage.
 - Queue quest mutation through SFSE's main-thread interface.
 - Re-resolve FormID plus instance ID and recheck state before calling a toggle

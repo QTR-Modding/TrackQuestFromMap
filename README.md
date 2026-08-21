@@ -94,14 +94,16 @@ dependency are present:
 ```powershell
 git clone --recursive https://github.com/QTR-Modding/TrackQuestFromMap.git
 cd TrackQuestFromMap
-xmake f -m release -a x64 -y
-xmake -y TrackQuestSurfaceNativeOnly
+xmake f -c -m release -a x64 -p windows -y
+xmake -r -y TrackQuestSurfaceNativeOnly
 ```
 
-`COMMONLIBSF_PATH` may point at an equivalent local checkout. Building has no
-install, deploy, mod-manager, or game-launch step.
+The build always consumes the repository-pinned `lib/commonlibsf` submodule.
+Building has no install, deploy, mod-manager, or game-launch step.
 
-The tested 0.2.2 dependency revisions are listed in [SOURCE.md](SOURCE.md).
+The tested 0.2.2 dependency revisions and the separate development dependency
+pin are listed in [SOURCE.md](SOURCE.md). A CI build is compile evidence, not a
+gameplay-tested release candidate.
 
 ## Development
 

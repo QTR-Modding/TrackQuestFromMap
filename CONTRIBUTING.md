@@ -33,8 +33,8 @@ xmake f -c -m release -a x64 -p windows -y
 xmake -r -y TrackQuestSurfaceNativeOnly
 ```
 
-`COMMONLIBSF_PATH` is a developer-only override. Release builds use the pinned
-`lib/commonlibsf` submodule. The build target must remain side-effect free.
+Builds always use the pinned `lib/commonlibsf` submodule. The build target must
+remain side-effect free.
 
 ## Change workflow
 
