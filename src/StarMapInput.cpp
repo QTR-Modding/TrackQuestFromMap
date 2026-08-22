@@ -1,7 +1,4 @@
-#include "PCH.h"
-
 #include "StarMapInput.h"
-
 #include "GalaxyMap.h"
 #include "SurfaceMap.h"
 
@@ -110,14 +107,14 @@ namespace TrackQuestSurface::StarMapInput
 				return false;
 			}
 
-			auto* ui = RE::UI::GetSingleton();
+			const auto* ui = RE::UI::GetSingleton();
 			if (!ui) {
 				logger::info("Select release preserved vanilla: UI singleton unavailable");
 				return false;
 			}
 
 			const RE::BSFixedString menuName{ RE::StarMap::StarMapMenu::MENU_NAME.data() };
-			auto                    menu = ui->GetMenu(menuName);
+			const auto                    menu = ui->GetMenu(menuName);
 			if (!menu) {
 				logger::info("Select release preserved vanilla: GalaxyStarMapMenu unavailable");
 				return false;
@@ -133,7 +130,7 @@ namespace TrackQuestSurface::StarMapInput
 			}
 
 			const char* rootPath = menu->GetRootPath();
-			auto*       movieRoot = menu->uiMovie->asMovieRoot.get();
+			const auto*       movieRoot = menu->uiMovie->asMovieRoot.get();
 			if (!rootPath || !movieRoot->GetVariable(std::addressof(a_hostRoot), rootPath) ||
 				!a_hostRoot.IsObject()) {
 				logger::info("Select release preserved vanilla: GalaxyStarMapMenu root unavailable");
@@ -397,7 +394,7 @@ namespace TrackQuestSurface::StarMapInput
 				return std::nullopt;
 			}
 
-			std::array<RE::Scaleform::GFx::Value, 3> arguments{
+			const std::array<RE::Scaleform::GFx::Value, 3> arguments{
 				RE::Scaleform::GFx::Value{ *mouseX },
 				RE::Scaleform::GFx::Value{ *mouseY },
 				RE::Scaleform::GFx::Value{ true }

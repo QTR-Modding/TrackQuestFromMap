@@ -1,7 +1,5 @@
 #pragma once
 
-#include "RE/B/BSInputEventUser.h"
-
 namespace TrackQuestSurface::StarMapInput
 {
 	using DispatchButtonEvent = void (*)(RE::BSInputEventUser*, const RE::ButtonEvent*);

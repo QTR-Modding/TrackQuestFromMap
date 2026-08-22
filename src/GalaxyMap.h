@@ -1,9 +1,5 @@
 #pragma once
 
-#include "RE/S/StarMap.h"
-
-#include <string>
-
 namespace TrackQuestSurface::GalaxyMap
 {
 	enum class View : std::uint8_t

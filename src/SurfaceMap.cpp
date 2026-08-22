@@ -1,7 +1,4 @@
-#include "PCH.h"
-
 #include "SurfaceMap.h"
-
 #include "QuestTracking.h"
 
 namespace TrackQuestSurface::SurfaceMap
@@ -48,7 +45,7 @@ namespace TrackQuestSurface::SurfaceMap
 
 		enum class MarkerCopyFailure : std::uint8_t
 		{
-			kNone,
+			kNone [[maybe_unused]],
 			kInvalidMarkerRange,
 			kImplausibleMarkerCount
 		};
@@ -317,13 +314,13 @@ namespace TrackQuestSurface::SurfaceMap
 			}
 
 			try {
-				auto* ui = RE::UI::GetSingleton();
+				const auto* ui = RE::UI::GetSingleton();
 				if (!ui) {
 					return;
 				}
 
 				const RE::BSFixedString menuName{ RE::StarMap::StarMapMenu::MENU_NAME.data() };
-				auto                    menu = ui->GetMenu(menuName);
+				const auto                    menu = ui->GetMenu(menuName);
 				if (!menu) {
 					return;
 				}
@@ -585,7 +582,7 @@ namespace TrackQuestSurface::SurfaceMap
 					continue;
 				}
 
-				bool exactMatch = false;
+				bool exactMatch;
 				switch (a_request.variant) {
 				case MarkerVariant::kQuestTarget:
 					exactMatch = marker.hasQuestTarget && !marker.questActive &&

@@ -1,5 +1,3 @@
-#include "PCH.h"
-
 #include "Hooks.h"
 
 SFSE_PLUGIN_VERSION = []() noexcept {
@@ -23,7 +21,7 @@ SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 			return false;
 		}
 
-		SFSE::InitInfo initInfo{
+		constexpr SFSE::InitInfo initInfo{
 			.logPattern = "%Y-%m-%d %H:%M:%S.%e [%l] %v",
 			.trampoline = true,
 			.trampolineSize = 128

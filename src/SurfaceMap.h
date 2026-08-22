@@ -1,10 +1,5 @@
 #pragma once
 
-#include "RE/S/StarMap.h"
-
-#include <cstdint>
-#include <string>
-
 namespace TrackQuestSurface::SurfaceMap
 {
 	enum class MarkerVariant : std::uint8_t

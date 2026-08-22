@@ -1,7 +1,4 @@
-#include "PCH.h"
-
 #include "GalaxyMap.h"
-
 #include "QuestTracking.h"
 
 namespace TrackQuestSurface::GalaxyMap
@@ -187,13 +184,13 @@ namespace TrackQuestSurface::GalaxyMap
 			}
 
 			try {
-				auto* ui = RE::UI::GetSingleton();
+				const auto* ui = RE::UI::GetSingleton();
 				if (!ui) {
 					return;
 				}
 
 				const RE::BSFixedString menuName{ RE::StarMap::StarMapMenu::MENU_NAME.data() };
-				auto                    menu = ui->GetMenu(menuName);
+				const auto                    menu = ui->GetMenu(menuName);
 				if (!menu) {
 					return;
 				}
