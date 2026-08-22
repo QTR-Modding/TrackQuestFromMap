@@ -366,32 +366,6 @@ namespace TrackQuestFromMap::StarMapInput
 			return std::nullopt;
 		}
 
-		[[nodiscard]] std::optional<double> ReadGFxNumberMember(
-			const RE::Scaleform::GFx::Value& a_object,
-			const std::string_view a_name)
-		{
-			RE::Scaleform::GFx::Value value;
-			if (!a_object.IsObject() ||
-				!a_object.GetMember(a_name, std::addressof(value)))
-			{
-				return std::nullopt;
-			}
-			if (value.IsNumber())
-			{
-				const auto number = value.GetNumber();
-				return std::isfinite(number) ? std::optional{number} : std::nullopt;
-			}
-			if (value.IsInt())
-			{
-				return value.GetInt();
-			}
-			if (value.IsUInt())
-			{
-				return value.GetUInt();
-			}
-			return std::nullopt;
-		}
-
 		[[nodiscard]] std::optional<std::size_t> ReadDisplayChildCount(
 			const RE::Scaleform::GFx::Value& a_object)
 		{
@@ -428,68 +402,50 @@ namespace TrackQuestFromMap::StarMapInput
 				ReadGFxStringMember(textField, "text", a_result);
 		}
 
-		[[nodiscard]] std::optional<bool> HitTestAtStageCursor(
-			RE::Scaleform::GFx::Value& a_displayObject)
+		[[nodiscard]] bool ReadQuestNameplateSelected(
+			const RE::Scaleform::GFx::Value& a_missionContainer,
+			bool& a_result)
 		{
-			RE::Scaleform::GFx::Value stage;
-			if (!a_displayObject.IsObject() ||
-				!a_displayObject.GetMember("stage", std::addressof(stage)) ||
-				!stage.IsObject())
+			RE::Scaleform::GFx::Value questNameplate;
+			RE::Scaleform::GFx::Value nameplateBase;
+			std::string currentLabel;
+			if (!a_missionContainer.GetMember("Nameplate_mc", std::addressof(questNameplate)) ||
+				!questNameplate.IsObject() ||
+				!questNameplate.GetMember("Nameplate_mc", std::addressof(nameplateBase)) ||
+				!nameplateBase.IsObject() ||
+				!ReadGFxStringMember(nameplateBase, "currentLabel", currentLabel))
 			{
-				return std::nullopt;
+				return false;
 			}
-
-			const auto mouseX = ReadGFxNumberMember(stage, "mouseX");
-			const auto mouseY = ReadGFxNumberMember(stage, "mouseY");
-			if (!mouseX || !mouseY)
-			{
-				return std::nullopt;
-			}
-
-			const std::array arguments{
-				RE::Scaleform::GFx::Value{*mouseX},
-				RE::Scaleform::GFx::Value{*mouseY},
-				RE::Scaleform::GFx::Value{true}
-			};
-			RE::Scaleform::GFx::Value hit;
-			if (!a_displayObject.Invoke(
-					"hitTestPoint",
-					std::addressof(hit),
-					arguments.data(),
-					arguments.size()) ||
-				!hit.IsBoolean())
-			{
-				return std::nullopt;
-			}
-			return hit.GetBoolean();
+			a_result = currentLabel == "system_selected";
+			return true;
 		}
 
-		enum class MissionSearchResult : std::uint8_t
+		struct MissionSelection
 		{
-			kNone,
-			kMatch,
-			kInvalid
+			bool inactive{};
+			std::string questTargetText;
 		};
 
-		[[nodiscard]] MissionSearchResult FindInactiveMissionIcon(
+		[[nodiscard]] bool FindHighlightedMissionIcon(
 			RE::Scaleform::GFx::Value& a_object,
 			const std::size_t a_depth,
 			std::size_t& a_visited,
-			std::string& a_questTargetText)
+			std::optional<MissionSelection>& a_selection)
 		{
 			if (!a_object.IsObject() || a_depth > kMaximumMissionDepth ||
 				++a_visited > kMaximumMissionDescendants)
 			{
-				return MissionSearchResult::kInvalid;
+				return false;
 			}
 			bool objectVisible{};
 			if (!ReadGFxBooleanMember(a_object, "visible", objectVisible))
 			{
-				return MissionSearchResult::kInvalid;
+				return false;
 			}
 			if (!objectVisible)
 			{
-				return MissionSearchResult::kNone;
+				return true;
 			}
 
 			RE::Scaleform::GFx::Value inactiveIcon;
@@ -504,30 +460,39 @@ namespace TrackQuestFromMap::StarMapInput
 					!ReadGFxBooleanMember(inactiveIcon, "visible", inactiveVisible) ||
 					!ReadGFxBooleanMember(activeIcon, "visible", activeVisible))
 				{
-					return MissionSearchResult::kInvalid;
+					return false;
 				}
-				if (!inactiveVisible || activeVisible)
+				bool highlighted{};
+				if (!ReadQuestNameplateSelected(a_object, highlighted))
 				{
-					return MissionSearchResult::kNone;
+					return false;
 				}
-				const auto hit = HitTestAtStageCursor(inactiveIcon);
-				if (!hit)
+				if (!highlighted)
 				{
-					return MissionSearchResult::kInvalid;
+					return true;
 				}
-				if (!*hit)
+				if (inactiveVisible == activeVisible || a_selection)
 				{
-					return MissionSearchResult::kNone;
+					return false;
 				}
-				return ReadQuestNameplateText(a_object, a_questTargetText)
-					       ? MissionSearchResult::kMatch
-					       : MissionSearchResult::kInvalid;
+
+				std::string questTargetText;
+				if (!ReadQuestNameplateText(a_object, questTargetText) ||
+					questTargetText.empty())
+				{
+					return false;
+				}
+				a_selection = MissionSelection{
+					.inactive = inactiveVisible,
+					.questTargetText = std::move(questTargetText)
+				};
+				return true;
 			}
 
 			const auto childCount = ReadDisplayChildCount(a_object);
 			if (!childCount)
 			{
-				return MissionSearchResult::kNone;
+				return true;
 			}
 			for (std::size_t reverseIndex = *childCount; reverseIndex > 0; --reverseIndex)
 			{
@@ -541,23 +506,22 @@ namespace TrackQuestFromMap::StarMapInput
 					std::addressof(childIndex),
 					1))
 				{
-					return MissionSearchResult::kInvalid;
+					return false;
 				}
 				if (!child.IsObject())
 				{
 					continue;
 				}
-				const auto result = FindInactiveMissionIcon(
-					child,
-					a_depth + 1,
-					a_visited,
-					a_questTargetText);
-				if (result != MissionSearchResult::kNone)
+				if (!FindHighlightedMissionIcon(
+						child,
+						a_depth + 1,
+						a_visited,
+						a_selection))
 				{
-					return result;
+					return false;
 				}
 			}
-			return MissionSearchResult::kNone;
+			return true;
 		}
 
 		[[nodiscard]] std::optional<GalaxyMap::Request> FindHoveredGalaxyQuestMarker(
@@ -595,6 +559,8 @@ namespace TrackQuestFromMap::StarMapInput
 				return std::nullopt;
 			}
 
+			std::optional<GalaxyMap::Request> selectedRequest;
+			bool highlightedMarkerFound = false;
 			for (std::size_t reverseIndex = *childCount; reverseIndex > 0; --reverseIndex)
 			{
 				const auto index = reverseIndex - 1;
@@ -620,20 +586,30 @@ namespace TrackQuestFromMap::StarMapInput
 				}
 
 				std::size_t visited{};
-				std::string questTargetText;
-				const auto missionResult = FindInactiveMissionIcon(
+				std::optional<MissionSelection> missionSelection;
+				if (!FindHighlightedMissionIcon(
 					marker,
 					0,
 					visited,
-					questTargetText);
-				if (missionResult == MissionSearchResult::kInvalid)
+					missionSelection))
 				{
 					logger::debug(
 						"Select release preserved vanilla: invalid Galaxy/System mission-icon tree (index={})",
 						index);
 					return std::nullopt;
 				}
-				if (missionResult != MissionSearchResult::kMatch)
+				if (!missionSelection)
+				{
+					continue;
+				}
+				if (highlightedMarkerFound)
+				{
+					logger::debug(
+						"Select release preserved vanilla: multiple highlighted Galaxy/System quest markers");
+					return std::nullopt;
+				}
+				highlightedMarkerFound = true;
+				if (!missionSelection->inactive)
 				{
 					continue;
 				}
@@ -644,26 +620,30 @@ namespace TrackQuestFromMap::StarMapInput
 					return std::nullopt;
 				}
 				const auto bodyID = ReadGFxUInt(bodyIDValue);
-				if (!bodyID || *bodyID == 0 || questTargetText.empty())
+				if (!bodyID || *bodyID == 0)
 				{
 					return std::nullopt;
 				}
 
-				logger::debug(
-					"Select release resolved {} mission icon: markerID={}, index={}, labelBytes={}",
-					view == GalaxyMap::View::kGalaxy ? "Galaxy" : "System",
-					*bodyID,
-					index,
-					questTargetText.size());
-				return GalaxyMap::Request{
+				selectedRequest = GalaxyMap::Request{
 					.view = view,
 					.markerLocationID = *bodyID,
-					.questTargetText = std::move(questTargetText)
+					.questTargetText = std::move(missionSelection->questTargetText)
 				};
 			}
 
+			if (selectedRequest)
+			{
+				logger::debug(
+					"Select release resolved highlighted {} mission icon: markerID={}, labelBytes={}",
+					view == GalaxyMap::View::kGalaxy ? "Galaxy" : "System",
+					selectedRequest->markerLocationID,
+					selectedRequest->questTargetText.size());
+				return selectedRequest;
+			}
+
 			logger::debug(
-				"Select release preserved vanilla: no inactive mission icon under the cursor in {} visible markers",
+				"Select release preserved vanilla: no uniquely highlighted inactive mission icon among {} visible markers",
 				*childCount);
 			return std::nullopt;
 		}
