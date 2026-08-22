@@ -141,46 +141,26 @@ namespace TrackQuestFromMap::GalaxyMap
 				return std::nullopt;
 			}
 
-			if (a_request.view == View::kGalaxy)
+			for (const auto& marker : markerCache)
 			{
-				const MarkerRecord* displayed{};
-				for (const auto& marker : markerCache)
+				const bool locationMatches = a_request.view == View::kGalaxy
+					? marker.systemLocationID == a_request.markerLocationID
+					: marker.bodyLocationID == a_request.markerLocationID;
+				if (!locationMatches ||
+					marker.questTargetText != a_request.questTargetText ||
+					marker.questActive)
 				{
-					if (marker.systemLocationID != a_request.markerLocationID)
-					{
-						continue;
-					}
-					if (marker.questActive)
-					{
-						return std::nullopt;
-					}
-					if (!displayed || marker.bodyLocationID > displayed->bodyLocationID)
-					{
-						displayed = std::addressof(marker);
-					}
+					continue;
 				}
-				if (!displayed || displayed->questTargetText != a_request.questTargetText)
+				if (resolved && *resolved != marker.quest)
 				{
+					logger::warn(
+						"Rejected ambiguous {} quest marker {}",
+						a_request.view == View::kGalaxy ? "Galaxy" : "System",
+						a_request.markerLocationID);
 					return std::nullopt;
 				}
-				resolved = displayed->quest;
-			}
-			else
-			{
-				for (const auto& marker : markerCache)
-				{
-					if (marker.bodyLocationID != a_request.markerLocationID ||
-						marker.questTargetText != a_request.questTargetText ||
-						marker.questActive)
-					{
-						continue;
-					}
-					if (resolved && *resolved != marker.quest)
-					{
-						return std::nullopt;
-					}
-					resolved = marker.quest;
-				}
+				resolved = marker.quest;
 			}
 			return resolved;
 		}
@@ -230,6 +210,7 @@ namespace TrackQuestFromMap::GalaxyMap
 	{
 		if (!originalBuildQuestTargetTree)
 		{
+			logger::critical("Star Map hook has no vanilla quest-target tree builder");
 			std::terminate();
 		}
 
@@ -268,6 +249,7 @@ namespace TrackQuestFromMap::GalaxyMap
 	{
 		if (!originalComposeQuestTargetMarker)
 		{
+			logger::critical("Star Map hook has no vanilla quest-target marker composer");
 			std::terminate();
 		}
 
@@ -308,6 +290,7 @@ namespace TrackQuestFromMap::GalaxyMap
 	{
 		if (!originalInsertQuestTargetMarker)
 		{
+			logger::critical("Star Map hook has no vanilla quest-target marker inserter");
 			std::terminate();
 		}
 
