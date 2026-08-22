@@ -278,39 +278,39 @@ namespace TrackQuestFromMap::Hooks
 			return false;
 		}
 
-		std::vector<CallPatch> patches;
-		patches.reserve(13);
-		patches.push_back({
+		std::array<CallPatch, kQuestTreeCallRvas.size() + 6> patches{};
+		patches[0] = {
 			questTreeInsertCallsiteA,
 			REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureInsertedQuestTargetMarker)
-		});
-		patches.push_back({
+		};
+		patches[1] = {
 			questTreeInsertCallsiteB,
 			REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureInsertedQuestTargetMarker)
-		});
-		patches.push_back({
+		};
+		patches[2] = {
 			questTreeComposeCallsite,
 			REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureAndComposeQuestTargetMarker)
-		});
+		};
+		std::size_t patchIndex = 3;
 		for (const auto callsite : questTreeCallsites)
 		{
-			patches.push_back({
+			patches[patchIndex++] = {
 				callsite,
 				REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::BuildAndPublishQuestTargetTree)
-			});
+			};
 		}
-		patches.push_back({
+		patches[patchIndex++] = {
 			surfaceComposeCallsite,
 			REX::UNRESTRICTED_CAST<std::uintptr_t>(SurfaceMap::CaptureAndComposeQuestTarget)
-		});
-		patches.push_back({
+		};
+		patches[patchIndex++] = {
 			surfaceGatherCallsite,
 			REX::UNRESTRICTED_CAST<std::uintptr_t>(SurfaceMap::BuildAndSnapshot)
-		});
-		patches.push_back({
+		};
+		patches[patchIndex] = {
 			inputCallsite,
 			REX::UNRESTRICTED_CAST<std::uintptr_t>(StarMapInput::OnStarMapButton)
-		});
+		};
 
 		for (auto& patch : patches)
 		{

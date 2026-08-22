@@ -29,6 +29,5 @@ namespace TrackQuestFromMap::SurfaceMap
 
 	[[nodiscard]] bool CaptureAndComposeQuestTarget(void* a_context, void* a_target) noexcept;
 	void BuildAndSnapshot(RE::StarMap::SurfaceMapState* a_surfaceState) noexcept;
-	void ResetCache() noexcept;
 	[[nodiscard]] bool TryActivate(const Request& a_request);
 }

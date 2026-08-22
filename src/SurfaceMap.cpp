@@ -454,31 +454,35 @@ namespace TrackQuestFromMap::SurfaceMap
 			PublishCache(std::move(next));
 		}
 
-		[[nodiscard]] bool CaptureAndComposeQuestTargetImpl(
-			void* a_context,
-			void* a_target) noexcept
+	}
+
+	[[nodiscard]] bool CaptureAndComposeQuestTarget(
+		void* a_context,
+		void* a_target) noexcept
+	{
+		if (auto* capture = activeQuestCapture)
 		{
-			if (auto* capture = activeQuestCapture)
+			RE::TESQuest* quest{};
+			if (a_context)
 			{
-				RE::TESQuest* quest{};
-				if (a_context)
-				{
-					std::memcpy(
-						std::addressof(quest),
-						static_cast<const std::byte*>(a_context) + kComposeQuestOffset,
-						sizeof(quest));
-				}
-				if (quest)
-				{
-					capture->Record(quest->GetInstanceKey());
-				}
-				else
-				{
-					capture->invalidInvocation = true;
-				}
+				std::memcpy(
+					std::addressof(quest),
+					static_cast<const std::byte*>(a_context) + kComposeQuestOffset,
+					sizeof(quest));
 			}
-			return originalComposeQuestTarget(a_context, a_target);
+			if (quest)
+			{
+				capture->Record(quest->GetInstanceKey());
+			}
+			else
+			{
+				capture->invalidInvocation = true;
+			}
 		}
+		return originalComposeQuestTarget(a_context, a_target);
+	}
+	namespace
+	{
 
 		void BuildAndSnapshotImpl(RE::StarMap::SurfaceMapState* a_surfaceState)
 		{
@@ -499,7 +503,7 @@ namespace TrackQuestFromMap::SurfaceMap
 
 			// A reused handle must never resolve against the preceding generation while
 			// native entries are being repopulated.
-			ResetCache();
+			PublishCache({});
 			threadQuestCapture.Reset();
 			{
 				ScopedQuestCapture captureScope{threadQuestCapture};
@@ -625,11 +629,6 @@ namespace TrackQuestFromMap::SurfaceMap
 		surfaceRefreshValidated = a_surfaceRefreshValidated;
 	}
 
-	bool CaptureAndComposeQuestTarget(void* a_context, void* a_target) noexcept
-	{
-		return CaptureAndComposeQuestTargetImpl(a_context, a_target);
-	}
-
 	void BuildAndSnapshot(RE::StarMap::SurfaceMapState* a_surfaceState) noexcept
 	{
 		try
@@ -639,13 +638,8 @@ namespace TrackQuestFromMap::SurfaceMap
 		catch (const std::exception& error)
 		{
 			logger::error("Surface Map snapshot failed: {}", error.what());
-			ResetCache();
+			PublishCache({});
 		}
-	}
-
-	void ResetCache() noexcept
-	{
-		PublishCache({});
 	}
 
 	bool TryActivate(const Request& a_request)
