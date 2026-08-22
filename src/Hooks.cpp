@@ -281,36 +281,36 @@ namespace TrackQuestFromMap::Hooks
 
 		std::array<CallPatch, kQuestTreeCallRvas.size() + 6> patches{};
 		patches[0] = {
-			questTreeInsertCallsiteA,
-			REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureInsertedQuestTargetMarker)
+			.address = questTreeInsertCallsiteA,
+			.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureInsertedQuestTargetMarker)
 		};
 		patches[1] = {
-			questTreeInsertCallsiteB,
-			REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureInsertedQuestTargetMarker)
+			.address = questTreeInsertCallsiteB,
+			.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureInsertedQuestTargetMarker)
 		};
 		patches[2] = {
-			questTreeComposeCallsite,
-			REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureAndComposeQuestTargetMarker)
+			.address = questTreeComposeCallsite,
+			.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::CaptureAndComposeQuestTargetMarker)
 		};
 		std::size_t patchIndex = 3;
 		for (const auto callsite : questTreeCallsites)
 		{
 			patches[patchIndex++] = {
-				callsite,
-				REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::BuildAndPublishQuestTargetTree)
+				.address = callsite,
+				.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(GalaxyMap::BuildAndPublishQuestTargetTree)
 			};
 		}
 		patches[patchIndex++] = {
-			surfaceComposeCallsite,
-			REX::UNRESTRICTED_CAST<std::uintptr_t>(SurfaceMap::CaptureAndComposeQuestTarget)
+			.address = surfaceComposeCallsite,
+			.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(SurfaceMap::CaptureAndComposeQuestTarget)
 		};
 		patches[patchIndex++] = {
-			surfaceGatherCallsite,
-			REX::UNRESTRICTED_CAST<std::uintptr_t>(SurfaceMap::BuildAndSnapshot)
+			.address = surfaceGatherCallsite,
+			.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(SurfaceMap::BuildAndSnapshot)
 		};
 		patches[patchIndex] = {
-			inputCallsite,
-			REX::UNRESTRICTED_CAST<std::uintptr_t>(StarMapInput::OnStarMapButton)
+			.address = inputCallsite,
+			.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(StarMapInput::OnStarMapButton)
 		};
 
 		for (auto& patch : patches)
