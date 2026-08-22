@@ -19,17 +19,15 @@ Supported views:
 
 Install the DLL at:
 
-    Data/SFSE/Plugins/TrackQuestSurfaceNativeOnly.dll
-
-The legacy DLL filename is retained for upgrades from the Surface Map release.
-The mod contains no SWF files and stores no save data.
+    Data/SFSE/Plugins/TrackQuestFromMarker.dll
 
 ## Building
 
-    git clone --recursive https://github.com/QTR-Modding/TrackQuestFromMap.git
-    cd TrackQuestFromMap
-    xmake f -c -m release -a x64 -p windows -y
-    xmake -r -y TrackQuestSurfaceNativeOnly
+Generate the Visual Studio solution once:
+
+    xmake project -k vsxmake -m "debug,release,releasedbg"
+
+Then open TrackQuestFromMap.sln and build normally in Visual Studio.
 
 ## License
 

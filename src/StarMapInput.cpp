@@ -2,15 +2,15 @@
 #include "GalaxyMap.h"
 #include "SurfaceMap.h"
 
-namespace TrackQuestSurface::StarMapInput
+namespace TrackQuestFromMap::StarMapInput
 {
 	namespace
 	{
-		constexpr auto             kLargeQuestMarkerType = RE::StarMap::SurfaceMarkerType::kQuest;
-		constexpr std::size_t      kMaximumUIChildren = 4096;
-		constexpr std::size_t      kMaximumMissionDescendants = 128;
-		constexpr std::size_t      kMaximumMissionDepth = 8;
-		constexpr std::size_t      kMaximumQuestTargetTextBytes = 4096;
+		constexpr auto kLargeQuestMarkerType = RE::StarMap::SurfaceMarkerType::kQuest;
+		constexpr std::size_t kMaximumUIChildren = 4096;
+		constexpr std::size_t kMaximumMissionDescendants = 128;
+		constexpr std::size_t kMaximumMissionDepth = 8;
+		constexpr std::size_t kMaximumQuestTargetTextBytes = 4096;
 		constexpr std::string_view kSelectUserEvent = "Select";
 
 		DispatchButtonEvent originalDispatchButtonEvent{};
@@ -18,17 +18,24 @@ namespace TrackQuestSurface::StarMapInput
 		[[nodiscard]] std::optional<std::uint32_t> ReadGFxUInt(
 			const RE::Scaleform::GFx::Value& a_value) noexcept
 		{
-			if (a_value.IsUInt()) {
+			if (a_value.IsUInt())
+			{
 				return a_value.GetUInt();
 			}
-			if (a_value.IsInt()) {
-				return static_cast<std::uint32_t>(a_value.GetInt());
+			if (a_value.IsInt())
+			{
+				const auto value = a_value.GetInt();
+				return value >= 0
+					? std::optional{static_cast<std::uint32_t>(value)}
+					: std::nullopt;
 			}
-			if (a_value.IsNumber()) {
+			if (a_value.IsNumber())
+			{
 				const double number = a_value.GetNumber();
 				if (std::isfinite(number) && number >= 0.0 &&
 					std::trunc(number) == number &&
-					number <= static_cast<double>(std::numeric_limits<std::uint32_t>::max())) {
+					number <= static_cast<double>(std::numeric_limits<std::uint32_t>::max()))
+				{
 					return static_cast<std::uint32_t>(number);
 				}
 			}
@@ -37,14 +44,16 @@ namespace TrackQuestSurface::StarMapInput
 
 		[[nodiscard]] bool ReadGFxBooleanMember(
 			const RE::Scaleform::GFx::Value& a_object,
-			const std::string_view           a_name,
-			bool&                            a_result)
+			const std::string_view a_name,
+			bool& a_result)
 		{
-			if (!a_object.IsObject()) {
+			if (!a_object.IsObject())
+			{
 				return false;
 			}
 			RE::Scaleform::GFx::Value value;
-			if (!a_object.GetMember(a_name, std::addressof(value)) || !value.IsBoolean()) {
+			if (!a_object.GetMember(a_name, std::addressof(value)) || !value.IsBoolean())
+			{
 				return false;
 			}
 			a_result = value.GetBoolean();
@@ -53,28 +62,33 @@ namespace TrackQuestSurface::StarMapInput
 
 		[[nodiscard]] bool ReadGFxStringMember(
 			const RE::Scaleform::GFx::Value& a_object,
-			const std::string_view           a_name,
-			std::string&                     a_result)
+			const std::string_view a_name,
+			std::string& a_result)
 		{
-			if (!a_object.IsObject()) {
+			if (!a_object.IsObject())
+			{
 				return false;
 			}
 			RE::Scaleform::GFx::Value value;
-			if (!a_object.GetMember(a_name, std::addressof(value)) || !value.IsString()) {
+			if (!a_object.GetMember(a_name, std::addressof(value)) || !value.IsString())
+			{
 				return false;
 			}
 
 			// GetString may point into a managed GFx value. Copy it while `value` is
 			// alive and never retain the pointer beyond this call.
 			const auto* text = value.GetString();
-			if (!text) {
+			if (!text)
+			{
 				return false;
 			}
 			std::size_t length = 0;
-			while (length <= kMaximumQuestTargetTextBytes && text[length] != '\0') {
+			while (length <= kMaximumQuestTargetTextBytes && text[length] != '\0')
+			{
 				++length;
 			}
-			if (length > kMaximumQuestTargetTextBytes) {
+			if (length > kMaximumQuestTargetTextBytes)
+			{
 				return false;
 			}
 			a_result.assign(text, length);
@@ -83,57 +97,67 @@ namespace TrackQuestSurface::StarMapInput
 
 		[[nodiscard]] std::optional<bool> ReadGFxNestedVisible(
 			const RE::Scaleform::GFx::Value& a_object,
-			const std::string_view           a_memberName)
+			const std::string_view a_memberName)
 		{
-			if (!a_object.IsObject()) {
+			if (!a_object.IsObject())
+			{
 				return std::nullopt;
 			}
 			RE::Scaleform::GFx::Value nested;
-			bool                      visible{};
+			bool visible{};
 			if (!a_object.GetMember(a_memberName, std::addressof(nested)) ||
 				!nested.IsObject() ||
-				!ReadGFxBooleanMember(nested, "visible", visible)) {
+				!ReadGFxBooleanMember(nested, "visible", visible))
+			{
 				return std::nullopt;
 			}
 			return visible;
 		}
 
 		[[nodiscard]] bool ResolveHostRoot(
-			RE::BSInputEventUser*      a_user,
+			RE::BSInputEventUser* a_user,
 			RE::Scaleform::GFx::Value& a_hostRoot)
 		{
-			if (!a_user) {
-				logger::info("Select release preserved vanilla: input recipient unavailable");
+			if (!a_user)
+			{
+				logger::debug("Select release preserved vanilla: input recipient unavailable");
 				return false;
 			}
 
 			const auto* ui = RE::UI::GetSingleton();
-			if (!ui) {
-				logger::info("Select release preserved vanilla: UI singleton unavailable");
+			if (!ui)
+			{
+				logger::debug("Select release preserved vanilla: UI singleton unavailable");
 				return false;
 			}
 
-			const RE::BSFixedString menuName{ RE::StarMap::StarMapMenu::MENU_NAME.data() };
-			const auto                    menu = ui->GetMenu(menuName);
-			if (!menu) {
-				logger::info("Select release preserved vanilla: GalaxyStarMapMenu unavailable");
+			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME.data()};
+			const auto menu = ui->GetMenu(menuName);
+			auto* starMapMenu = menu
+				? starfield_cast<RE::StarMap::StarMapMenu*>(menu.get())
+				: nullptr;
+			if (!starMapMenu)
+			{
+				logger::debug("Select preserved vanilla: Star Map menu unavailable");
 				return false;
 			}
-			if (static_cast<RE::BSInputEventUser*>(menu.get()) != a_user) {
-				logger::info(
-					"Select release preserved vanilla: live GalaxyStarMapMenu does not match input recipient");
+			if (static_cast<RE::BSInputEventUser*>(starMapMenu) != a_user)
+			{
+				logger::debug("Select preserved vanilla: input recipient mismatch");
 				return false;
 			}
-			if (!menu->uiMovie || !menu->uiMovie->asMovieRoot) {
-				logger::info("Select release preserved vanilla: GalaxyStarMapMenu movie unavailable");
+			if (!starMapMenu->uiMovie || !starMapMenu->uiMovie->asMovieRoot)
+			{
+				logger::debug("Select preserved vanilla: Star Map movie unavailable");
 				return false;
 			}
 
-			const char* rootPath = menu->GetRootPath();
-			const auto*       movieRoot = menu->uiMovie->asMovieRoot.get();
+			const char* rootPath = starMapMenu->GetRootPath();
+			const auto* movieRoot = starMapMenu->uiMovie->asMovieRoot.get();
 			if (!rootPath || !movieRoot->GetVariable(std::addressof(a_hostRoot), rootPath) ||
-				!a_hostRoot.IsObject()) {
-				logger::info("Select release preserved vanilla: GalaxyStarMapMenu root unavailable");
+				!a_hostRoot.IsObject())
+			{
+				logger::debug("Select release preserved vanilla: GalaxyStarMapMenu root unavailable");
 				return false;
 			}
 			return true;
@@ -143,10 +167,11 @@ namespace TrackQuestSurface::StarMapInput
 			const RE::Scaleform::GFx::Value& a_hostRoot)
 		{
 			RE::Scaleform::GFx::Value surfaceMap;
-			bool                      visible{};
+			bool visible{};
 			if (!a_hostRoot.GetMember("SurfaceMap_mc", std::addressof(surfaceMap)) ||
 				!surfaceMap.IsObject() ||
-				!ReadGFxBooleanMember(surfaceMap, "visible", visible)) {
+				!ReadGFxBooleanMember(surfaceMap, "visible", visible))
+			{
 				return std::nullopt;
 			}
 			return visible;
@@ -163,50 +188,58 @@ namespace TrackQuestSurface::StarMapInput
 				!surfaceMap.GetMember("Map_mc", std::addressof(map)) ||
 				!map.IsObject() ||
 				!map.GetMember("MarkersContainer_mc", std::addressof(markers)) ||
-				!markers.IsObject()) {
-				logger::info(
+				!markers.IsObject())
+			{
+				logger::debug(
 					"Select release preserved vanilla: public SurfaceMap_mc.Map_mc.MarkersContainer_mc path unavailable");
 				return std::nullopt;
 			}
 
 			bool surfaceMapVisible{};
-			if (!ReadGFxBooleanMember(surfaceMap, "visible", surfaceMapVisible) || !surfaceMapVisible) {
-				logger::info("Select release preserved vanilla: SurfaceMap_mc is not visibly active");
+			if (!ReadGFxBooleanMember(surfaceMap, "visible", surfaceMapVisible) || !surfaceMapVisible)
+			{
+				logger::debug("Select release preserved vanilla: SurfaceMap_mc is not visibly active");
 				return std::nullopt;
 			}
 
 			RE::Scaleform::GFx::Value childCountValue;
-			if (!markers.GetMember("numChildren", std::addressof(childCountValue))) {
-				logger::info("Select release preserved vanilla: marker child count unavailable");
+			if (!markers.GetMember("numChildren", std::addressof(childCountValue)))
+			{
+				logger::debug("Select release preserved vanilla: marker child count unavailable");
 				return std::nullopt;
 			}
 			const auto childCountValueUnsigned = ReadGFxUInt(childCountValue);
-			if (!childCountValueUnsigned || *childCountValueUnsigned > kMaximumUIChildren) {
-				logger::info(
+			if (!childCountValueUnsigned || *childCountValueUnsigned > kMaximumUIChildren)
+			{
+				logger::debug(
 					"Select release preserved vanilla: invalid marker child count (maximum={})",
 					kMaximumUIChildren);
 				return std::nullopt;
 			}
 
 			const auto childCount = static_cast<std::size_t>(*childCountValueUnsigned);
-			for (std::size_t reverseIndex = childCount; reverseIndex > 0; --reverseIndex) {
-				const auto                index = reverseIndex - 1;
+			for (std::size_t reverseIndex = childCount; reverseIndex > 0; --reverseIndex)
+			{
+				const auto index = reverseIndex - 1;
 				RE::Scaleform::GFx::Value child;
-				RE::Scaleform::GFx::Value childIndex{ static_cast<std::uint32_t>(index) };
+				RE::Scaleform::GFx::Value childIndex{static_cast<std::uint32_t>(index)};
 				if (!markers.Invoke(
-						"getChildAt",
-						std::addressof(child),
-						std::addressof(childIndex),
-						1)) {
-					logger::info("Select release preserved vanilla: getChildAt({}) failed", index);
+					"getChildAt",
+					std::addressof(child),
+					std::addressof(childIndex),
+					1))
+				{
+					logger::debug("Select release preserved vanilla: getChildAt({}) failed", index);
 					return std::nullopt;
 				}
-				if (!child.IsObject()) {
+				if (!child.IsObject())
+				{
 					continue;
 				}
 
 				bool childVisible{};
-				if (!ReadGFxBooleanMember(child, "visible", childVisible) || !childVisible) {
+				if (!ReadGFxBooleanMember(child, "visible", childVisible) || !childVisible)
+				{
 					continue;
 				}
 
@@ -214,7 +247,8 @@ namespace TrackQuestSurface::StarMapInput
 					ReadGFxNestedVisible(child, "QuestTargetText_mc").value_or(false);
 				const bool nameplateVisible =
 					ReadGFxNestedVisible(child, "Nameplate_mc").value_or(false);
-				if (!questTargetVisible && !nameplateVisible) {
+				if (!questTargetVisible && !nameplateVisible)
+				{
 					continue;
 				}
 
@@ -226,8 +260,9 @@ namespace TrackQuestSurface::StarMapInput
 				bool isLocation{};
 				if (!ReadGFxBooleanMember(child, "hasQuestTarget", hasQuestTarget) ||
 					!ReadGFxBooleanMember(child, "hasActiveQuest", hasActiveQuest) ||
-					!ReadGFxBooleanMember(child, "IsLocation", isLocation)) {
-					logger::info(
+					!ReadGFxBooleanMember(child, "IsLocation", isLocation))
+				{
+					logger::debug(
 						"Select release preserved vanilla: topmost hovered marker has invalid Boolean metadata (index={})",
 						index);
 					return std::nullopt;
@@ -239,8 +274,9 @@ namespace TrackQuestSurface::StarMapInput
 				if (!child.GetMember("handleBits", std::addressof(handleValue)) ||
 					!child.GetMember("MarkerData", std::addressof(markerData)) ||
 					!markerData.IsObject() ||
-					!markerData.GetMember("iMarkerType", std::addressof(markerTypeValue))) {
-					logger::info(
+					!markerData.GetMember("iMarkerType", std::addressof(markerTypeValue)))
+				{
+					logger::debug(
 						"Select release preserved vanilla: topmost hovered marker has invalid identity metadata (index={})",
 						index);
 					return std::nullopt;
@@ -248,8 +284,9 @@ namespace TrackQuestSurface::StarMapInput
 
 				const auto handle = ReadGFxUInt(handleValue);
 				const auto markerType = ReadGFxUInt(markerTypeValue);
-				if (!handle || !markerType) {
-					logger::info(
+				if (!handle || !markerType)
+				{
+					logger::debug(
 						"Select release preserved vanilla: topmost hovered marker has non-integral identity metadata (index={})",
 						index);
 					return std::nullopt;
@@ -267,28 +304,35 @@ namespace TrackQuestSurface::StarMapInput
 				const bool smallQuestTarget =
 					questTargetVisible && hasQuestTarget && !hasActiveQuest;
 
-				if (largeNameplate) {
+				if (largeNameplate)
+				{
 					candidate.variant = SurfaceMap::MarkerVariant::kLargeNameplate;
 					if (!ReadGFxStringMember(markerData, "sNameText", candidate.nameText) ||
-						!ReadGFxStringMember(markerData, "sExtraText", candidate.extraText)) {
-						logger::info(
+						!ReadGFxStringMember(markerData, "sExtraText", candidate.extraText))
+					{
+						logger::debug(
 							"Select release preserved vanilla: large marker has invalid name/extra text (index={})",
 							index);
 						return std::nullopt;
 					}
-				} else if (smallQuestTarget) {
+				}
+				else if (smallQuestTarget)
+				{
 					candidate.variant = SurfaceMap::MarkerVariant::kQuestTarget;
 					if (!ReadGFxStringMember(
-							markerData,
-							"sQuestTargetText",
-							candidate.questTargetText)) {
-						logger::info(
+						markerData,
+						"sQuestTargetText",
+						candidate.questTargetText))
+					{
+						logger::debug(
 							"Select release preserved vanilla: quest marker has invalid target text (index={})",
 							index);
 						return std::nullopt;
 					}
-				} else {
-					logger::info(
+				}
+				else
+				{
+					logger::debug(
 						"Select release preserved vanilla: topmost hovered marker is ineligible (index={}, handle=0x{:08X}, type={}, location={}, questTarget={}, active={}, nameplate={}, questLabel={})",
 						index,
 						*handle,
@@ -301,11 +345,11 @@ namespace TrackQuestSurface::StarMapInput
 					return std::nullopt;
 				}
 
-				logger::info(
+				logger::debug(
 					"Select release resolved topmost {} marker: handle=0x{:08X}, type={}, index={}, children={}, nameBytes={}, extraBytes={}, questTextBytes={}",
-					candidate.variant == SurfaceMap::MarkerVariant::kLargeNameplate ?
-						"large-nameplate" :
-						"quest-target",
+					candidate.variant == SurfaceMap::MarkerVariant::kLargeNameplate
+						? "large-nameplate"
+						: "quest-target",
 					candidate.markerHandleBits,
 					candidate.markerType,
 					index,
@@ -316,7 +360,7 @@ namespace TrackQuestSurface::StarMapInput
 				return candidate;
 			}
 
-			logger::info(
+			logger::debug(
 				"Select release preserved vanilla: no visible hovered marker label among {} direct children",
 				childCount);
 			return std::nullopt;
@@ -324,22 +368,26 @@ namespace TrackQuestSurface::StarMapInput
 
 		[[nodiscard]] std::optional<double> ReadGFxNumberMember(
 			const RE::Scaleform::GFx::Value& a_object,
-			const std::string_view           a_name)
+			const std::string_view a_name)
 		{
 			RE::Scaleform::GFx::Value value;
 			if (!a_object.IsObject() ||
-				!a_object.GetMember(a_name, std::addressof(value))) {
+				!a_object.GetMember(a_name, std::addressof(value)))
+			{
 				return std::nullopt;
 			}
-			if (value.IsNumber()) {
+			if (value.IsNumber())
+			{
 				const auto number = value.GetNumber();
-				return std::isfinite(number) ? std::optional<double>{ number } : std::nullopt;
+				return std::isfinite(number) ? std::optional{number} : std::nullopt;
 			}
-			if (value.IsInt()) {
-				return static_cast<double>(value.GetInt());
+			if (value.IsInt())
+			{
+				return value.GetInt();
 			}
-			if (value.IsUInt()) {
-				return static_cast<double>(value.GetUInt());
+			if (value.IsUInt())
+			{
+				return value.GetUInt();
 			}
 			return std::nullopt;
 		}
@@ -349,33 +397,35 @@ namespace TrackQuestSurface::StarMapInput
 		{
 			RE::Scaleform::GFx::Value countValue;
 			if (!a_object.IsObject() ||
-				!a_object.GetMember("numChildren", std::addressof(countValue))) {
+				!a_object.GetMember("numChildren", std::addressof(countValue)))
+			{
 				return std::nullopt;
 			}
 			const auto count = ReadGFxUInt(countValue);
-			if (!count || *count > kMaximumUIChildren) {
+			if (!count || *count > kMaximumUIChildren)
+			{
 				return std::nullopt;
 			}
-			return static_cast<std::size_t>(*count);
+			return *count;
 		}
 
 		[[nodiscard]] bool ReadQuestNameplateText(
 			const RE::Scaleform::GFx::Value& a_missionContainer,
-			std::string&                     a_result)
+			std::string& a_result)
 		{
 			RE::Scaleform::GFx::Value questNameplate;
 			RE::Scaleform::GFx::Value nameplateBase;
 			RE::Scaleform::GFx::Value textContainer;
 			RE::Scaleform::GFx::Value textField;
 			return a_missionContainer.GetMember("Nameplate_mc", std::addressof(questNameplate)) &&
-			       questNameplate.IsObject() &&
-			       questNameplate.GetMember("Nameplate_mc", std::addressof(nameplateBase)) &&
-			       nameplateBase.IsObject() &&
-			       nameplateBase.GetMember("NameplateText_mc", std::addressof(textContainer)) &&
-			       textContainer.IsObject() &&
-			       textContainer.GetMember("text_tf", std::addressof(textField)) &&
-			       textField.IsObject() &&
-			       ReadGFxStringMember(textField, "text", a_result);
+				questNameplate.IsObject() &&
+				questNameplate.GetMember("Nameplate_mc", std::addressof(nameplateBase)) &&
+				nameplateBase.IsObject() &&
+				nameplateBase.GetMember("NameplateText_mc", std::addressof(textContainer)) &&
+				textContainer.IsObject() &&
+				textContainer.GetMember("text_tf", std::addressof(textField)) &&
+				textField.IsObject() &&
+				ReadGFxStringMember(textField, "text", a_result);
 		}
 
 		[[nodiscard]] std::optional<bool> HitTestAtStageCursor(
@@ -384,20 +434,22 @@ namespace TrackQuestSurface::StarMapInput
 			RE::Scaleform::GFx::Value stage;
 			if (!a_displayObject.IsObject() ||
 				!a_displayObject.GetMember("stage", std::addressof(stage)) ||
-				!stage.IsObject()) {
+				!stage.IsObject())
+			{
 				return std::nullopt;
 			}
 
 			const auto mouseX = ReadGFxNumberMember(stage, "mouseX");
 			const auto mouseY = ReadGFxNumberMember(stage, "mouseY");
-			if (!mouseX || !mouseY) {
+			if (!mouseX || !mouseY)
+			{
 				return std::nullopt;
 			}
 
-			const std::array<RE::Scaleform::GFx::Value, 3> arguments{
-				RE::Scaleform::GFx::Value{ *mouseX },
-				RE::Scaleform::GFx::Value{ *mouseY },
-				RE::Scaleform::GFx::Value{ true }
+			const std::array arguments{
+				RE::Scaleform::GFx::Value{*mouseX},
+				RE::Scaleform::GFx::Value{*mouseY},
+				RE::Scaleform::GFx::Value{true}
 			};
 			RE::Scaleform::GFx::Value hit;
 			if (!a_displayObject.Invoke(
@@ -405,7 +457,8 @@ namespace TrackQuestSurface::StarMapInput
 					std::addressof(hit),
 					arguments.data(),
 					arguments.size()) ||
-				!hit.IsBoolean()) {
+				!hit.IsBoolean())
+			{
 				return std::nullopt;
 			}
 			return hit.GetBoolean();
@@ -420,66 +473,78 @@ namespace TrackQuestSurface::StarMapInput
 
 		[[nodiscard]] MissionSearchResult FindInactiveMissionIcon(
 			RE::Scaleform::GFx::Value& a_object,
-			const std::size_t          a_depth,
-			std::size_t&               a_visited,
-			std::string&               a_questTargetText)
+			const std::size_t a_depth,
+			std::size_t& a_visited,
+			std::string& a_questTargetText)
 		{
 			if (!a_object.IsObject() || a_depth > kMaximumMissionDepth ||
-				++a_visited > kMaximumMissionDescendants) {
+				++a_visited > kMaximumMissionDescendants)
+			{
 				return MissionSearchResult::kInvalid;
 			}
 			bool objectVisible{};
-			if (!ReadGFxBooleanMember(a_object, "visible", objectVisible)) {
+			if (!ReadGFxBooleanMember(a_object, "visible", objectVisible))
+			{
 				return MissionSearchResult::kInvalid;
 			}
-			if (!objectVisible) {
+			if (!objectVisible)
+			{
 				return MissionSearchResult::kNone;
 			}
 
 			RE::Scaleform::GFx::Value inactiveIcon;
-			if (a_object.GetMember("ObjectiveAtPOIInactive_mc", std::addressof(inactiveIcon))) {
+			if (a_object.GetMember("ObjectiveAtPOIInactive_mc", std::addressof(inactiveIcon)))
+			{
 				RE::Scaleform::GFx::Value activeIcon;
-				bool                      inactiveVisible{};
-				bool                      activeVisible{};
+				bool inactiveVisible{};
+				bool activeVisible{};
 				if (!inactiveIcon.IsObject() ||
 					!a_object.GetMember("ObjectiveAtPOI_mc", std::addressof(activeIcon)) ||
 					!activeIcon.IsObject() ||
 					!ReadGFxBooleanMember(inactiveIcon, "visible", inactiveVisible) ||
-					!ReadGFxBooleanMember(activeIcon, "visible", activeVisible)) {
+					!ReadGFxBooleanMember(activeIcon, "visible", activeVisible))
+				{
 					return MissionSearchResult::kInvalid;
 				}
-				if (!inactiveVisible || activeVisible) {
+				if (!inactiveVisible || activeVisible)
+				{
 					return MissionSearchResult::kNone;
 				}
 				const auto hit = HitTestAtStageCursor(inactiveIcon);
-				if (!hit) {
+				if (!hit)
+				{
 					return MissionSearchResult::kInvalid;
 				}
-				if (!*hit) {
+				if (!*hit)
+				{
 					return MissionSearchResult::kNone;
 				}
-				return ReadQuestNameplateText(a_object, a_questTargetText) ?
-				           MissionSearchResult::kMatch :
-				           MissionSearchResult::kInvalid;
+				return ReadQuestNameplateText(a_object, a_questTargetText)
+					       ? MissionSearchResult::kMatch
+					       : MissionSearchResult::kInvalid;
 			}
 
 			const auto childCount = ReadDisplayChildCount(a_object);
-			if (!childCount) {
+			if (!childCount)
+			{
 				return MissionSearchResult::kNone;
 			}
-			for (std::size_t reverseIndex = *childCount; reverseIndex > 0; --reverseIndex) {
+			for (std::size_t reverseIndex = *childCount; reverseIndex > 0; --reverseIndex)
+			{
 				RE::Scaleform::GFx::Value child;
 				RE::Scaleform::GFx::Value childIndex{
 					static_cast<std::uint32_t>(reverseIndex - 1)
 				};
 				if (!a_object.Invoke(
-						"getChildAt",
-						std::addressof(child),
-						std::addressof(childIndex),
-						1)) {
+					"getChildAt",
+					std::addressof(child),
+					std::addressof(childIndex),
+					1))
+				{
 					return MissionSearchResult::kInvalid;
 				}
-				if (!child.IsObject()) {
+				if (!child.IsObject())
+				{
 					continue;
 				}
 				const auto result = FindInactiveMissionIcon(
@@ -487,7 +552,8 @@ namespace TrackQuestSurface::StarMapInput
 					a_depth + 1,
 					a_visited,
 					a_questTargetText);
-				if (result != MissionSearchResult::kNone) {
+				if (result != MissionSearchResult::kNone)
+				{
 					return result;
 				}
 			}
@@ -500,9 +566,9 @@ namespace TrackQuestSurface::StarMapInput
 			RE::Scaleform::GFx::Value markersRoot;
 			RE::Scaleform::GFx::Value systemMarkers;
 			RE::Scaleform::GFx::Value bodyMarkers;
-			bool                      markersVisible{};
-			bool                      systemVisible{};
-			bool                      bodyVisible{};
+			bool markersVisible{};
+			bool systemVisible{};
+			bool bodyVisible{};
 			if (!a_hostRoot.GetMember("Markers_mc", std::addressof(markersRoot)) ||
 				!markersRoot.IsObject() ||
 				!ReadGFxBooleanMember(markersRoot, "visible", markersVisible) ||
@@ -513,67 +579,77 @@ namespace TrackQuestSurface::StarMapInput
 				!bodyMarkers.IsObject() ||
 				!ReadGFxBooleanMember(systemMarkers, "visible", systemVisible) ||
 				!ReadGFxBooleanMember(bodyMarkers, "visible", bodyVisible) ||
-				systemVisible == bodyVisible) {
-				logger::info(
+				systemVisible == bodyVisible)
+			{
+				logger::debug(
 					"Select release preserved vanilla: Galaxy/System marker containers are unavailable or ambiguous");
 				return std::nullopt;
 			}
 
 			const auto view = systemVisible ? GalaxyMap::View::kGalaxy : GalaxyMap::View::kSystem;
-			auto&      container = systemVisible ? systemMarkers : bodyMarkers;
+			auto& container = systemVisible ? systemMarkers : bodyMarkers;
 			const auto childCount = ReadDisplayChildCount(container);
-			if (!childCount) {
-				logger::info("Select release preserved vanilla: Galaxy/System marker count unavailable");
+			if (!childCount)
+			{
+				logger::debug("Select release preserved vanilla: Galaxy/System marker count unavailable");
 				return std::nullopt;
 			}
 
-			for (std::size_t reverseIndex = *childCount; reverseIndex > 0; --reverseIndex) {
-				const auto                index = reverseIndex - 1;
+			for (std::size_t reverseIndex = *childCount; reverseIndex > 0; --reverseIndex)
+			{
+				const auto index = reverseIndex - 1;
 				RE::Scaleform::GFx::Value marker;
-				RE::Scaleform::GFx::Value markerIndex{ static_cast<std::uint32_t>(index) };
+				RE::Scaleform::GFx::Value markerIndex{static_cast<std::uint32_t>(index)};
 				if (!container.Invoke(
-						"getChildAt",
-						std::addressof(marker),
-						std::addressof(markerIndex),
-						1)) {
+					"getChildAt",
+					std::addressof(marker),
+					std::addressof(markerIndex),
+					1))
+				{
 					return std::nullopt;
 				}
-				if (!marker.IsObject()) {
+				if (!marker.IsObject())
+				{
 					continue;
 				}
 
 				bool markerVisible{};
-				if (!ReadGFxBooleanMember(marker, "visible", markerVisible) || !markerVisible) {
+				if (!ReadGFxBooleanMember(marker, "visible", markerVisible) || !markerVisible)
+				{
 					continue;
 				}
 
 				std::size_t visited{};
 				std::string questTargetText;
-				const auto  missionResult = FindInactiveMissionIcon(
+				const auto missionResult = FindInactiveMissionIcon(
 					marker,
 					0,
 					visited,
 					questTargetText);
-				if (missionResult == MissionSearchResult::kInvalid) {
-					logger::info(
+				if (missionResult == MissionSearchResult::kInvalid)
+				{
+					logger::debug(
 						"Select release preserved vanilla: invalid Galaxy/System mission-icon tree (index={})",
 						index);
 					return std::nullopt;
 				}
-				if (missionResult != MissionSearchResult::kMatch) {
+				if (missionResult != MissionSearchResult::kMatch)
+				{
 					continue;
 				}
 
 				RE::Scaleform::GFx::Value bodyIDValue;
-				if (!marker.GetMember("bodyID", std::addressof(bodyIDValue))) {
+				if (!marker.GetMember("bodyID", std::addressof(bodyIDValue)))
+				{
 					return std::nullopt;
 				}
 				const auto bodyID = ReadGFxUInt(bodyIDValue);
-				if (!bodyID || *bodyID == 0 || questTargetText.empty()) {
+				if (!bodyID || *bodyID == 0 || questTargetText.empty())
+				{
 					return std::nullopt;
 				}
 
-				logger::info(
+				logger::debug(
 					"Select release resolved {} mission icon: markerID={}, index={}, labelBytes={}",
 					view == GalaxyMap::View::kGalaxy ? "Galaxy" : "System",
 					*bodyID,
@@ -586,7 +662,7 @@ namespace TrackQuestSurface::StarMapInput
 				};
 			}
 
-			logger::info(
+			logger::debug(
 				"Select release preserved vanilla: no inactive mission icon under the cursor in {} visible markers",
 				*childCount);
 			return std::nullopt;
@@ -601,12 +677,13 @@ namespace TrackQuestSurface::StarMapInput
 				!std::isfinite(a_event->heldDownSecs) ||
 				a_event->heldDownSecs < 0.0F ||
 				a_event->value != 0.0F ||
-				a_event->disabled) {
+				a_event->disabled)
+			{
 				return false;
 			}
 
 			const auto& userEvent = a_event->QUserEvent();
-			return std::string_view{ userEvent.c_str(), userEvent.length() } == kSelectUserEvent;
+			return std::string_view{userEvent.c_str(), userEvent.length()} == kSelectUserEvent;
 		}
 	}
 
@@ -615,66 +692,77 @@ namespace TrackQuestSurface::StarMapInput
 		originalDispatchButtonEvent = a_dispatchButtonEvent;
 	}
 
+	namespace
+	{
+		[[nodiscard]] bool TryHandleStarMapSelect(
+			RE::BSInputEventUser* a_user,
+			const RE::ButtonEvent* a_event)
+		{
+			if (!IsExactSelectRelease(a_event))
+			{
+				return false;
+			}
+
+			RE::Scaleform::GFx::Value hostRoot;
+			if (!ResolveHostRoot(a_user, hostRoot))
+			{
+				return false;
+			}
+
+			const auto surfaceVisible = SurfaceMapIsVisible(hostRoot);
+			if (!surfaceVisible)
+			{
+				logger::debug(
+					"Select release preserved vanilla: Surface Map visibility state unavailable");
+				return false;
+			}
+
+			bool consumed = false;
+			if (*surfaceVisible)
+			{
+				const auto request = FindHoveredSurfaceQuestMarker(hostRoot);
+				consumed = request && SurfaceMap::TryActivate(*request);
+			}
+			else
+			{
+				const auto request = FindHoveredGalaxyQuestMarker(hostRoot);
+				consumed = request && GalaxyMap::TryActivate(*request);
+			}
+			if (!consumed)
+			{
+				logger::debug(
+					"Select release preserved vanilla: no exact inactive quest request was accepted");
+			}
+			return consumed;
+		}
+	}
+
 	// Exact ABI at StarMapMenu::OnButtonEvent + 0x10C: RCX is the
-	// BSInputEventUser subobject and
-	// RDX is the ButtonEvent. IMenu::OnButtonEvent is called exactly once unless a
-	// unique marker request was accepted and queued.
+	// BSInputEventUser subobject and RDX is the ButtonEvent.
 	void OnStarMapButton(
-		RE::BSInputEventUser*  a_user,
+		RE::BSInputEventUser* a_user,
 		const RE::ButtonEvent* a_event) noexcept
 	{
 		bool consumed = false;
-		try {
-			if (IsExactSelectRelease(a_event)) {
-				RE::Scaleform::GFx::Value hostRoot;
-				if (ResolveHostRoot(a_user, hostRoot)) {
-					const auto surfaceVisible = SurfaceMapIsVisible(hostRoot);
-					if (!surfaceVisible) {
-						logger::info(
-							"Select release preserved vanilla: Surface Map visibility state unavailable");
-					} else if (*surfaceVisible) {
-						const auto request = FindHoveredSurfaceQuestMarker(hostRoot);
-						if (request) {
-							consumed = SurfaceMap::TryActivate(*request);
-						}
-					} else {
-						const auto request = FindHoveredGalaxyQuestMarker(hostRoot);
-						if (request) {
-							consumed = GalaxyMap::TryActivate(*request);
-						}
-					}
-					if (!consumed) {
-						logger::info(
-							"Select release preserved vanilla: no exact inactive quest request was accepted");
-					}
-				}
-			}
-		} catch (const std::exception& error) {
-			try {
-				logger::error("Star Map Select resolver failed; preserving vanilla: {}", error.what());
-			} catch (...) {
-			}
-		} catch (...) {
-			try {
-				logger::error("Star Map Select resolver failed unexpectedly; preserving vanilla");
-			} catch (...) {
-			}
+		try
+		{
+			consumed = TryHandleStarMapSelect(a_user, a_event);
+		}
+		catch (const std::exception& error)
+		{
+			logger::error("Star Map Select resolver failed; preserving vanilla: {}", error.what());
 		}
 
-		if (consumed) {
+		if (consumed)
+		{
 			const_cast<RE::ButtonEvent*>(a_event)->status = RE::InputEvent::Status::kStop;
-			try {
-				logger::info("Consumed Star Map Select release after queuing quest activation");
-			} catch (...) {
-			}
+			logger::debug("Consumed Star Map Select");
 			return;
 		}
 
-		if (!originalDispatchButtonEvent) {
-			try {
-				logger::critical("Star Map input hook has no vanilla dispatcher");
-			} catch (...) {
-			}
+		if (!originalDispatchButtonEvent)
+		{
+			logger::critical("Star Map input hook has no vanilla dispatcher");
 			std::terminate();
 		}
 		originalDispatchButtonEvent(a_user, a_event);

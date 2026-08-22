@@ -20,8 +20,13 @@ end
 local commonlibsf = path.join(os.projectdir(), "lib", "commonlibsf")
 includes(commonlibsf)
 
-set_project("TrackQuestFromMap")
-set_version("0.3.0")
+local plugin_name = "TrackQuestFromMap"
+local dll_name = "TrackQuestFromMarker"
+local plugin_version = "0.3.0"
+local plugin_author = "Quantumyilmaz"
+
+set_project(plugin_name)
+set_version(plugin_version)
 set_license("GPL-3.0-or-later")
 set_languages("c++23")
 set_warnings("allextra")
@@ -29,15 +34,22 @@ set_warnings("allextra")
 add_rules("mode.debug", "mode.releasedbg", "mode.release")
 add_rules("plugin.vsxmake.autoupdate")
 
-target("TrackQuestSurfaceNativeOnly")
-    set_kind("shared")
-    set_arch("x64")
+target(dll_name)
+    add_rules("commonlibsf.plugin", {
+        author = plugin_author,
+        name = plugin_name,
+        options = {
+            sig_scanning = false,
+            address_library = true,
+            no_struct_use = false,
+            layout_dependent = true
+        }
+    })
     set_pcxxheader("src/PCH.h")
     add_defines("_SILENCE_CXX23_ALIGNED_STORAGE_DEPRECATION_WARNING")
-    add_deps("commonlibsf")
     add_files(
         "src/plugin.cpp",
-		"src/GalaxyMap.cpp",
+        "src/GalaxyMap.cpp",
         "src/Hooks.cpp",
         "src/QuestTracking.cpp",
         "src/StarMapInput.cpp",
@@ -45,14 +57,10 @@ target("TrackQuestSurfaceNativeOnly")
     )
     add_headerfiles(
         "src/PCH.h",
-		"src/GalaxyMap.h",
+        "src/GalaxyMap.h",
         "src/Hooks.h",
         "src/QuestTracking.h",
         "src/StarMapInput.h",
         "src/SurfaceMap.h"
     )
     add_includedirs("src")
-
-    -- Deliberately do not apply CommonLibSF's plugin packaging rule. This
-    -- target must never copy into Starfield or a mod manager as a build side
-    -- effect.
