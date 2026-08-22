@@ -18,7 +18,7 @@ namespace TrackQuestFromMap::SurfaceMap
 		struct MarkerRecord
 		{
 			std::uint32_t markerHandleBits{};
-			RE::StarMap::SurfaceMarkerType markerType{};
+			RE::StarMap::SurfaceMarkerType markerType;
 			bool isLocation{};
 			bool hasQuestTarget{};
 			bool questActive{};
@@ -33,7 +33,7 @@ namespace TrackQuestFromMap::SurfaceMap
 		struct CopiedMarkerRecord
 		{
 			std::uint32_t markerHandleBits{};
-			RE::StarMap::SurfaceMarkerType markerType{};
+			RE::StarMap::SurfaceMarkerType markerType;
 			bool isLocation{};
 			bool hasQuestTarget{};
 			bool questActive{};
@@ -192,6 +192,8 @@ namespace TrackQuestFromMap::SurfaceMap
 
 			ScopedQuestCapture(const ScopedQuestCapture&) = delete;
 			ScopedQuestCapture& operator=(const ScopedQuestCapture&) = delete;
+			ScopedQuestCapture(ScopedQuestCapture&&) = delete;
+			ScopedQuestCapture& operator=(ScopedQuestCapture&&) = delete;
 
 		private:
 			QuestPairCapture* previous_{};
@@ -210,6 +212,8 @@ namespace TrackQuestFromMap::SurfaceMap
 
 			ScopedGatherDepth(const ScopedGatherDepth&) = delete;
 			ScopedGatherDepth& operator=(const ScopedGatherDepth&) = delete;
+			ScopedGatherDepth(ScopedGatherDepth&&) = delete;
+			ScopedGatherDepth& operator=(ScopedGatherDepth&&) = delete;
 
 		private:
 			std::size_t& depth_;
@@ -308,7 +312,8 @@ namespace TrackQuestFromMap::SurfaceMap
 					.questActive = marker.IsQuestActive(),
 					.nameText = *nameText,
 					.extraText = *extraText,
-					.questTargetText = *questTargetText
+					.questTargetText = *questTargetText,
+					.ownerFormIDs = {}
 				};
 				incoming.ownerFormIDs.reserve(ownerCount);
 				for (std::size_t ownerIndex = 0; ownerIndex < ownerCount; ++ownerIndex)
@@ -334,15 +339,15 @@ namespace TrackQuestFromMap::SurfaceMap
 				return;
 			}
 
-			const auto* ui = RE::UI::GetSingleton();
+			const auto ui = RE::UI::GetSingleton();
 			if (!ui)
 			{
 				return;
 			}
 
-			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME.data()};
+			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME};
 			const auto menu = ui->GetMenu(menuName);
-			auto* starMapMenu = menu
+			const auto starMapMenu = menu
 				? starfield_cast<RE::StarMap::StarMapMenu*>(menu.get())
 				: nullptr;
 			if (!starMapMenu)
@@ -351,7 +356,7 @@ namespace TrackQuestFromMap::SurfaceMap
 				return;
 			}
 
-			auto* surfaceState = starMapMenu->GetSurfaceMapState();
+			const auto surfaceState = starMapMenu->GetSurfaceMapState();
 			if (!surfaceState)
 			{
 				return;
@@ -362,7 +367,7 @@ namespace TrackQuestFromMap::SurfaceMap
 		}
 
 		void SnapshotMarkerOwners(
-			RE::StarMap::SurfaceMapState* a_surfaceState,
+			const RE::StarMap::SurfaceMapState* a_surfaceState,
 			const QuestPairCapture& a_capture)
 		{
 			// Phase A is the only phase that touches the owner-thread-only native
@@ -405,7 +410,9 @@ namespace TrackQuestFromMap::SurfaceMap
 					.nameText = copiedMarker.nameText,
 					.extraText = copiedMarker.extraText,
 					.questTargetText = copiedMarker.questTargetText,
-					.rawOwnerCount = copiedMarker.ownerFormIDs.size()
+					.rawOwnerCount = copiedMarker.ownerFormIDs.size(),
+					.visibleOwner = std::nullopt,
+					.owners = {}
 				};
 
 				bool valid = true;
@@ -460,15 +467,15 @@ namespace TrackQuestFromMap::SurfaceMap
 		void* a_context,
 		void* a_target) noexcept
 	{
-		if (auto* capture = activeQuestCapture)
+		if (const auto capture = activeQuestCapture)
 		{
 			RE::TESQuest* quest{};
 			if (a_context)
 			{
 				std::memcpy(
-					std::addressof(quest),
+					static_cast<void*>(std::addressof(quest)),
 					static_cast<const std::byte*>(a_context) + kComposeQuestOffset,
-					sizeof(quest));
+					sizeof(RE::TESQuest*));
 			}
 			if (quest)
 			{
@@ -492,7 +499,7 @@ namespace TrackQuestFromMap::SurfaceMap
 			// capture and only let the true outermost call reset or publish a generation.
 			if (surfaceGatherDepth > 1)
 			{
-				if (auto* outerCapture = activeQuestCapture)
+				if (const auto outerCapture = activeQuestCapture)
 				{
 					outerCapture->invalidInvocation = true;
 				}
@@ -542,7 +549,14 @@ namespace TrackQuestFromMap::SurfaceMap
 					continue;
 				}
 
-				bool exactMatch;
+				if (a_request.variant != MarkerVariant::kQuestTarget &&
+					a_request.variant != MarkerVariant::kLargeNameplate)
+				{
+					logger::warn("Rejected SurfaceMap marker request with unknown variant");
+					return std::nullopt;
+				}
+
+				bool exactMatch = false;
 				switch (a_request.variant)
 				{
 				case MarkerVariant::kQuestTarget:
@@ -559,9 +573,6 @@ namespace TrackQuestFromMap::SurfaceMap
 						marker.nameText == a_request.nameText &&
 						marker.extraText == a_request.extraText;
 					break;
-				default:
-					logger::warn("Rejected SurfaceMap marker request with unknown variant");
-					return std::nullopt;
 				}
 				if (!exactMatch)
 				{

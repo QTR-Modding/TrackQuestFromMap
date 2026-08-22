@@ -77,7 +77,7 @@ namespace TrackQuestFromMap::StarMapInput
 
 			// GetString may point into a managed GFx value. Copy it while `value` is
 			// alive and never retain the pointer beyond this call.
-			const auto* text = value.GetString();
+			const auto text = value.GetString();
 			if (!text)
 			{
 				return false;
@@ -115,7 +115,7 @@ namespace TrackQuestFromMap::StarMapInput
 		}
 
 		[[nodiscard]] bool ResolveHostRoot(
-			RE::BSInputEventUser* a_user,
+			const RE::BSInputEventUser* a_user,
 			RE::Scaleform::GFx::Value& a_hostRoot)
 		{
 			if (!a_user)
@@ -124,16 +124,16 @@ namespace TrackQuestFromMap::StarMapInput
 				return false;
 			}
 
-			const auto* ui = RE::UI::GetSingleton();
+			const auto ui = RE::UI::GetSingleton();
 			if (!ui)
 			{
 				logger::debug("Select release preserved vanilla: UI singleton unavailable");
 				return false;
 			}
 
-			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME.data()};
+			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME};
 			const auto menu = ui->GetMenu(menuName);
-			auto* starMapMenu = menu
+			const auto starMapMenu = menu
 				? starfield_cast<RE::StarMap::StarMapMenu*>(menu.get())
 				: nullptr;
 			if (!starMapMenu)
@@ -153,7 +153,7 @@ namespace TrackQuestFromMap::StarMapInput
 			}
 
 			const char* rootPath = starMapMenu->GetRootPath();
-			const auto* movieRoot = starMapMenu->uiMovie->asMovieRoot.get();
+			const auto movieRoot = starMapMenu->uiMovie->asMovieRoot.get();
 			if (!rootPath || !movieRoot->GetVariable(std::addressof(a_hostRoot), rootPath) ||
 				!a_hostRoot.IsObject())
 			{
@@ -292,11 +292,10 @@ namespace TrackQuestFromMap::StarMapInput
 					return std::nullopt;
 				}
 
-				SurfaceMap::Request candidate{
-					.markerHandleBits = *handle,
-					.markerType = *markerType,
-					.isLocation = isLocation
-				};
+				SurfaceMap::Request candidate{};
+				candidate.markerHandleBits = *handle;
+				candidate.markerType = *markerType;
+				candidate.isLocation = isLocation;
 				const bool largeNameplate =
 					nameplateVisible &&
 					*markerType == static_cast<std::uint16_t>(kLargeQuestMarkerType) &&
@@ -675,7 +674,7 @@ namespace TrackQuestFromMap::StarMapInput
 	namespace
 	{
 		[[nodiscard]] bool TryHandleStarMapSelect(
-			RE::BSInputEventUser* a_user,
+			const RE::BSInputEventUser* a_user,
 			const RE::ButtonEvent* a_event)
 		{
 			if (!IsExactSelectRelease(a_event))
@@ -697,7 +696,7 @@ namespace TrackQuestFromMap::StarMapInput
 				return false;
 			}
 
-			bool consumed = false;
+			bool consumed;
 			if (*surfaceVisible)
 			{
 				const auto request = FindHoveredSurfaceQuestMarker(hostRoot);

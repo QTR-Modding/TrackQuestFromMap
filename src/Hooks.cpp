@@ -62,8 +62,9 @@ namespace TrackQuestFromMap::Hooks
 			const std::uintptr_t a_address,
 			const std::array<std::uint8_t, N>& a_bytes) noexcept
 		{
+			const REL::Relocation<const std::uint8_t*> source{a_address};
 			return std::memcmp(
-				reinterpret_cast<const void*>(a_address),
+				source.get(),
 				a_bytes.data(),
 				a_bytes.size()) == 0;
 		}
@@ -96,7 +97,7 @@ namespace TrackQuestFromMap::Hooks
 		}
 	}
 
-	bool InstallImpl()
+	static bool InstallImpl()
 	{
 		const REL::Relocation<SurfaceMap::BuildSurfaceMarkers> surfaceGather{
 			RE::ID::StarMap::SurfaceMapState::GatherSurfaceQuestTargets
@@ -320,9 +321,10 @@ namespace TrackQuestFromMap::Hooks
 				logger::error("Hook branch is outside signed rel32 reach at 0x{:X}", patch.address);
 				return false;
 			}
+			const REL::Relocation<const std::uint8_t*> source{patch.address};
 			std::memcpy(
 				patch.original.data(),
-				reinterpret_cast<const void*>(patch.address),
+				source.get(),
 				patch.original.size());
 		}
 
@@ -330,7 +332,8 @@ namespace TrackQuestFromMap::Hooks
 		for (const auto& patch : patches)
 		{
 			REL::Relocation{patch.address}.write_call<5>(patch.target);
-			const auto opcode = *reinterpret_cast<const std::uint8_t*>(patch.address);
+			const REL::Relocation<const std::uint8_t*> callsite{patch.address};
+			const auto opcode = *callsite;
 			if (opcode != 0xE8 ||
 				REL::ASM::CALL5::TARGET(patch.address) != patch.branch)
 			{
@@ -341,9 +344,9 @@ namespace TrackQuestFromMap::Hooks
 		if (!writesVerified)
 		{
 			bool restored = true;
-			for (auto iterator = patches.rbegin(); iterator != patches.rend(); ++iterator)
+			for (const auto& patch : std::views::reverse(patches))
 			{
-				restored = Restore(iterator->address, iterator->original) && restored;
+				restored = Restore(patch.address, patch.original) && restored;
 			}
 			if (!restored)
 			{

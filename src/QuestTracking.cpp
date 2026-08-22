@@ -14,9 +14,8 @@ namespace TrackQuestFromMap::QuestTracking
 				return "Galaxy Map";
 			case Source::kSystem:
 				return "System Map";
-			default:
-				return "Star Map";
 			}
+			return "Star Map";
 		}
 
 		void ActivateOnMainThreadImpl(

@@ -79,9 +79,9 @@ namespace TrackQuestFromMap::GalaxyMap
 		{
 			T result{};
 			std::memcpy(
-				std::addressof(result),
+				static_cast<void*>(std::addressof(result)),
 				static_cast<const std::byte*>(a_base) + a_offset,
-				sizeof(result));
+				sizeof(T));
 			return result;
 		}
 
@@ -95,7 +95,7 @@ namespace TrackQuestFromMap::GalaxyMap
 			}
 		}
 
-		void Publish(GenerationCapture& a_capture)
+		void Publish(const GenerationCapture& a_capture)
 		{
 			if (a_capture.invalid ||
 				latestStartedGeneration.load(std::memory_order_acquire) != a_capture.generation)
@@ -172,15 +172,15 @@ namespace TrackQuestFromMap::GalaxyMap
 				return;
 			}
 
-			const auto* ui = RE::UI::GetSingleton();
+			const auto ui = RE::UI::GetSingleton();
 			if (!ui)
 			{
 				return;
 			}
 
-			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME.data()};
+			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME};
 			const auto menu = ui->GetMenu(menuName);
-			auto* starMapMenu = menu
+			const auto starMapMenu = menu
 				? starfield_cast<RE::StarMap::StarMapMenu*>(menu.get())
 				: nullptr;
 			if (!starMapMenu)
@@ -266,8 +266,9 @@ namespace TrackQuestFromMap::GalaxyMap
 		}
 
 		contributorValid = false;
-		const auto* quest = a_context ? ReadAt<const RE::TESQuest*>(a_context, kComposeQuestOffset) : nullptr;
-		if (quest)
+		if (const auto quest =
+				a_context ? ReadAt<const RE::TESQuest*>(a_context, kComposeQuestOffset) : nullptr;
+			quest)
 		{
 			activeContributor = quest->GetInstanceKey();
 			contributorValid = activeContributor.formID != 0;
