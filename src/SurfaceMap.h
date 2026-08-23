@@ -19,15 +19,15 @@ namespace TrackQuestFromMap::SurfaceMap
 		std::string questTargetText;
 	};
 
-	using BuildSurfaceMarkers = void (*)(RE::StarMap::SurfaceMapState*);
-	using ComposeQuestTarget = bool (*)(void*, void*);
+	using GatherSurfaceQuestTargets = void (*)(RE::StarMap::SurfaceMapState*);
+	using ComposeSurfaceQuestTarget = bool (*)(void*, void*);
 
 	void SetOriginalFunctions(
-		BuildSurfaceMarkers a_buildSurfaceMarkers,
-		ComposeQuestTarget a_composeQuestTarget,
+		GatherSurfaceQuestTargets a_gatherSurfaceQuestTargets,
+		ComposeSurfaceQuestTarget a_composeSurfaceQuestTarget,
 		bool a_surfaceRefreshValidated) noexcept;
 
-	[[nodiscard]] bool CaptureAndComposeQuestTarget(void* a_context, void* a_target) noexcept;
+	[[nodiscard]] bool CaptureAndComposeSurfaceQuestTarget(void* a_context, void* a_target) noexcept;
 	void BuildAndSnapshot(RE::StarMap::SurfaceMapState* a_surfaceState) noexcept;
 	[[nodiscard]] bool TryActivate(const Request& a_request);
 }

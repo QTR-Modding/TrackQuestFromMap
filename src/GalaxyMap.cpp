@@ -350,11 +350,6 @@ namespace TrackQuestFromMap::GalaxyMap
 			return false;
 		}
 
-		logger::info(
-			"Queued {} quest 0x{:08X}, instance={}",
-			a_request.view == View::kGalaxy ? "Galaxy Map" : "System Map",
-			key->formID,
-			key->instanceID);
 		return true;
 	}
 }
