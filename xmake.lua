@@ -50,17 +50,24 @@ target(dll_name)
     add_files(
         "src/plugin.cpp",
         "src/GalaxyMap.cpp",
+        "src/GalaxyMapSelection.cpp",
         "src/Hooks.cpp",
         "src/QuestTracking.cpp",
         "src/StarMapInput.cpp",
-        "src/SurfaceMap.cpp"
+        "src/StarMapSelection.cpp",
+        "src/SurfaceMap.cpp",
+        "src/SurfaceMapSelection.cpp"
     )
     add_headerfiles(
         "src/PCH.h",
         "src/GalaxyMap.h",
+        "src/GalaxyMapSelection.h",
         "src/Hooks.h",
         "src/QuestTracking.h",
         "src/StarMapInput.h",
-        "src/SurfaceMap.h"
+        "src/StarMapSelection.h",
+        "src/StarMapSelectionUtil.h",
+        "src/SurfaceMap.h",
+        "src/SurfaceMapSelection.h"
     )
     add_includedirs("src")

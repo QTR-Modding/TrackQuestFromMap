@@ -45,7 +45,7 @@ namespace TrackQuestFromMap::SurfaceMap
 
 		enum class MarkerCopyFailure : std::uint8_t
 		{
-			kNone [[maybe_unused]],
+			kNone,
 			kInvalidMarkerRange,
 			kImplausibleMarkerCount
 		};
@@ -77,25 +77,18 @@ namespace TrackQuestFromMap::SurfaceMap
 		struct QuestPairCapture
 		{
 			std::array<CapturedQuestSlot, kQuestCaptureSlotCount> slots{};
-			std::size_t contributorCalls{};
-			std::size_t uniqueForms{};
-			std::size_t ambiguousForms{};
 			bool overflow{};
 			bool invalidInvocation{};
 
 			void Reset() noexcept
 			{
 				slots.fill(CapturedQuestSlot{});
-				contributorCalls = 0;
-				uniqueForms = 0;
-				ambiguousForms = 0;
 				overflow = false;
 				invalidInvocation = false;
 			}
 
 			void Record(const QuestKey& a_key) noexcept
 			{
-				++contributorCalls;
 				if (a_key.formID == 0)
 				{
 					invalidInvocation = true;
@@ -113,7 +106,6 @@ namespace TrackQuestFromMap::SurfaceMap
 					{
 						slot.key = a_key;
 						slot.state = CapturedQuestState::kUnique;
-						++uniqueForms;
 						return;
 					}
 					if (slot.key.formID != a_key.formID)
@@ -124,8 +116,6 @@ namespace TrackQuestFromMap::SurfaceMap
 						slot.key.instanceID != a_key.instanceID)
 					{
 						slot.state = CapturedQuestState::kAmbiguous;
-						--uniqueForms;
-						++ambiguousForms;
 					}
 					return;
 				}
@@ -168,56 +158,12 @@ namespace TrackQuestFromMap::SurfaceMap
 
 		std::mutex cacheMutex;
 		MarkerCache markerCache;
-		BuildSurfaceMarkers originalBuildSurfaceMarkers{};
-		ComposeQuestTarget originalComposeQuestTarget{};
+		GatherSurfaceQuestTargets originalGatherSurfaceQuestTargets{};
+		ComposeSurfaceQuestTarget originalComposeSurfaceQuestTarget{};
 		thread_local QuestPairCapture threadQuestCapture;
 		thread_local QuestPairCapture* activeQuestCapture{};
 		thread_local std::size_t surfaceGatherDepth{};
 		bool surfaceRefreshValidated{};
-
-		class ScopedQuestCapture
-		{
-		public:
-			explicit ScopedQuestCapture(QuestPairCapture* a_capture) noexcept :
-				previous_(std::exchange(activeQuestCapture, a_capture))
-			{
-			}
-
-			explicit ScopedQuestCapture(QuestPairCapture& a_capture) noexcept :
-				ScopedQuestCapture(std::addressof(a_capture))
-			{
-			}
-
-			~ScopedQuestCapture() { activeQuestCapture = previous_; }
-
-			ScopedQuestCapture(const ScopedQuestCapture&) = delete;
-			ScopedQuestCapture& operator=(const ScopedQuestCapture&) = delete;
-			ScopedQuestCapture(ScopedQuestCapture&&) = delete;
-			ScopedQuestCapture& operator=(ScopedQuestCapture&&) = delete;
-
-		private:
-			QuestPairCapture* previous_{};
-		};
-
-		class ScopedGatherDepth
-		{
-		public:
-			explicit ScopedGatherDepth(std::size_t& a_depth) noexcept :
-				depth_(a_depth)
-			{
-				++depth_;
-			}
-
-			~ScopedGatherDepth() { --depth_; }
-
-			ScopedGatherDepth(const ScopedGatherDepth&) = delete;
-			ScopedGatherDepth& operator=(const ScopedGatherDepth&) = delete;
-			ScopedGatherDepth(ScopedGatherDepth&&) = delete;
-			ScopedGatherDepth& operator=(ScopedGatherDepth&&) = delete;
-
-		private:
-			std::size_t& depth_;
-		};
 
 		[[nodiscard]] std::optional<std::string> CopyNativeText(
 			const RE::BSFixedString& a_text)
@@ -463,7 +409,7 @@ namespace TrackQuestFromMap::SurfaceMap
 
 	}
 
-	[[nodiscard]] bool CaptureAndComposeQuestTarget(
+	[[nodiscard]] bool CaptureAndComposeSurfaceQuestTarget(
 		void* a_context,
 		void* a_target) noexcept
 	{
@@ -486,14 +432,17 @@ namespace TrackQuestFromMap::SurfaceMap
 				capture->invalidInvocation = true;
 			}
 		}
-		return originalComposeQuestTarget(a_context, a_target);
+		return originalComposeSurfaceQuestTarget(a_context, a_target);
 	}
 	namespace
 	{
 
 		void BuildAndSnapshotImpl(RE::StarMap::SurfaceMapState* a_surfaceState)
 		{
-			ScopedGatherDepth gatherDepth{surfaceGatherDepth};
+			++surfaceGatherDepth;
+			const REX::TScopeExit restoreGatherDepth{
+				[]() noexcept { --surfaceGatherDepth; }
+			};
 
 			// This state is owner-thread-only and non-reentrant. Suppress every nested
 			// capture and only let the true outermost call reset or publish a generation.
@@ -503,8 +452,11 @@ namespace TrackQuestFromMap::SurfaceMap
 				{
 					outerCapture->invalidInvocation = true;
 				}
-				ScopedQuestCapture suppressCapture{nullptr};
-				originalBuildSurfaceMarkers(a_surfaceState);
+				auto* const previousCapture = std::exchange(activeQuestCapture, nullptr);
+				const REX::TScopeExit restoreCapture{
+					[previousCapture]() noexcept { activeQuestCapture = previousCapture; }
+				};
+				originalGatherSurfaceQuestTargets(a_surfaceState);
 				return;
 			}
 
@@ -513,8 +465,12 @@ namespace TrackQuestFromMap::SurfaceMap
 			PublishCache({});
 			threadQuestCapture.Reset();
 			{
-				ScopedQuestCapture captureScope{threadQuestCapture};
-				originalBuildSurfaceMarkers(a_surfaceState);
+				auto* const previousCapture =
+					std::exchange(activeQuestCapture, std::addressof(threadQuestCapture));
+				const REX::TScopeExit restoreCapture{
+					[previousCapture]() noexcept { activeQuestCapture = previousCapture; }
+				};
+				originalGatherSurfaceQuestTargets(a_surfaceState);
 			}
 
 			if (threadQuestCapture.overflow || threadQuestCapture.invalidInvocation)
@@ -619,24 +575,17 @@ namespace TrackQuestFromMap::SurfaceMap
 			}
 
 			const auto owner = uniqueOwners.front();
-			logger::info(
-				"Resolved {} SurfaceMap marker 0x{:08X}: visible quest 0x{:08X}, instance={}, matchingRows={}",
-				a_request.variant == MarkerVariant::kLargeNameplate ? "large-nameplate" : "quest-target",
-				a_request.markerHandleBits,
-				owner.formID,
-				owner.instanceID,
-				matchingRows);
 			return owner;
 		}
 	}
 
 	void SetOriginalFunctions(
-		const BuildSurfaceMarkers a_buildSurfaceMarkers,
-		const ComposeQuestTarget a_composeQuestTarget,
+		const GatherSurfaceQuestTargets a_gatherSurfaceQuestTargets,
+		const ComposeSurfaceQuestTarget a_composeSurfaceQuestTarget,
 		const bool a_surfaceRefreshValidated) noexcept
 	{
-		originalBuildSurfaceMarkers = a_buildSurfaceMarkers;
-		originalComposeQuestTarget = a_composeQuestTarget;
+		originalGatherSurfaceQuestTargets = a_gatherSurfaceQuestTargets;
+		originalComposeSurfaceQuestTarget = a_composeSurfaceQuestTarget;
 		surfaceRefreshValidated = a_surfaceRefreshValidated;
 	}
 
@@ -669,10 +618,6 @@ namespace TrackQuestFromMap::SurfaceMap
 			return false;
 		}
 
-		logger::info(
-			"Queued Surface Map quest 0x{:08X}, instance={}",
-			owner->formID,
-			owner->instanceID);
 		return true;
 	}
 }

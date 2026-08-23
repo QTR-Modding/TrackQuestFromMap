@@ -99,10 +99,10 @@ namespace TrackQuestFromMap::Hooks
 
 	static bool InstallImpl()
 	{
-		const REL::Relocation<SurfaceMap::BuildSurfaceMarkers> surfaceGather{
+		const REL::Relocation<SurfaceMap::GatherSurfaceQuestTargets> surfaceGather{
 			RE::ID::StarMap::SurfaceMapState::GatherSurfaceQuestTargets
 		};
-		const REL::Relocation<SurfaceMap::ComposeQuestTarget> surfaceCompose{
+		const REL::Relocation<SurfaceMap::ComposeSurfaceQuestTarget> surfaceCompose{
 			RE::ID::StarMap::ComposeSurfaceQuestTarget
 		};
 		const REL::Relocation<StarMapInput::DispatchButtonEvent> inputDispatcher{
@@ -302,7 +302,7 @@ namespace TrackQuestFromMap::Hooks
 		}
 		patches[patchIndex++] = {
 			.address = surfaceComposeCallsite,
-			.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(SurfaceMap::CaptureAndComposeQuestTarget)
+			.target = REX::UNRESTRICTED_CAST<std::uintptr_t>(SurfaceMap::CaptureAndComposeSurfaceQuestTarget)
 		};
 		patches[patchIndex++] = {
 			.address = surfaceGatherCallsite,
