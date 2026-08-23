@@ -163,7 +163,6 @@ namespace TrackQuestFromMap::SurfaceMap
 		thread_local QuestPairCapture threadQuestCapture;
 		thread_local QuestPairCapture* activeQuestCapture{};
 		thread_local std::size_t surfaceGatherDepth{};
-		bool surfaceRefreshValidated{};
 
 		[[nodiscard]] std::optional<std::string> CopyNativeText(
 			const RE::BSFixedString& a_text)
@@ -276,40 +275,6 @@ namespace TrackQuestFromMap::SurfaceMap
 		{
 			std::scoped_lock lock(cacheMutex);
 			markerCache = std::move(a_next);
-		}
-
-		void RebuildCurrentSurfaceMap()
-		{
-			if (!surfaceRefreshValidated)
-			{
-				return;
-			}
-
-			const auto ui = RE::UI::GetSingleton();
-			if (!ui)
-			{
-				return;
-			}
-
-			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME};
-			const auto menu = ui->GetMenu(menuName);
-			const auto starMapMenu = menu
-				? starfield_cast<RE::StarMap::StarMapMenu*>(menu.get())
-				: nullptr;
-			if (!starMapMenu)
-			{
-				logger::warn("Skipped Surface Map refresh: unexpected menu type");
-				return;
-			}
-
-			const auto surfaceState = starMapMenu->GetSurfaceMapState();
-			if (!surfaceState)
-			{
-				return;
-			}
-
-			surfaceState->Refresh();
-			logger::debug("Refreshed Surface Map quest targets");
 		}
 
 		void SnapshotMarkerOwners(
@@ -581,12 +546,10 @@ namespace TrackQuestFromMap::SurfaceMap
 
 	void SetOriginalFunctions(
 		const GatherSurfaceQuestTargets a_gatherSurfaceQuestTargets,
-		const ComposeSurfaceQuestTarget a_composeSurfaceQuestTarget,
-		const bool a_surfaceRefreshValidated) noexcept
+		const ComposeSurfaceQuestTarget a_composeSurfaceQuestTarget) noexcept
 	{
 		originalGatherSurfaceQuestTargets = a_gatherSurfaceQuestTargets;
 		originalComposeSurfaceQuestTarget = a_composeSurfaceQuestTarget;
-		surfaceRefreshValidated = a_surfaceRefreshValidated;
 	}
 
 	void BuildAndSnapshot(RE::StarMap::SurfaceMapState* a_surfaceState) noexcept
@@ -610,10 +573,7 @@ namespace TrackQuestFromMap::SurfaceMap
 			return false;
 		}
 
-		if (!QuestTracking::QueueTrack(
-			*owner,
-			QuestTracking::Source::kSurface,
-			RebuildCurrentSurfaceMap))
+		if (!QuestTracking::QueueTrack(*owner, QuestTracking::Source::kSurface))
 		{
 			return false;
 		}

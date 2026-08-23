@@ -233,18 +233,6 @@ namespace TrackQuestFromMap::Hooks
 			return false;
 		}
 
-		const bool surfaceRefreshValidated =
-			REL::Pattern<
-				"40 53 48 83 EC 20 48 8D 99 F0 11 00 00 C6 44 24 30 03">()
-			.match(RE::ID::StarMap::StarMapMenu::GetSurfaceMapState.address()) &&
-			REL::Pattern<
-				"48 89 5C 24 08 48 89 6C 24 10 48 89 74 24 18 48 89 7C 24 20 41 56 48 83 EC 40">()
-			.match(RE::ID::StarMap::SurfaceMapState::Refresh.address());
-		if (!surfaceRefreshValidated)
-		{
-			logger::warn(
-				"Surface Map repaint signatures do not match; tracking stays enabled but forced repaint is disabled");
-		}
 		const bool starMapRefreshValidated =
 			REL::Pattern<
 				"48 89 5C 24 10 48 89 74 24 18 57 48 83 EC 30">()
@@ -262,8 +250,7 @@ namespace TrackQuestFromMap::Hooks
 			starMapRefreshValidated);
 		SurfaceMap::SetOriginalFunctions(
 			surfaceGather.get(),
-			surfaceCompose.get(),
-			surfaceRefreshValidated);
+			surfaceCompose.get());
 		StarMapInput::SetOriginalDispatcher(inputDispatcher.get());
 
 		auto& trampoline = REL::GetTrampoline();

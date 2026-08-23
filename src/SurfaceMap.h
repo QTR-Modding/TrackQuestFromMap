@@ -24,8 +24,7 @@ namespace TrackQuestFromMap::SurfaceMap
 
 	void SetOriginalFunctions(
 		GatherSurfaceQuestTargets a_gatherSurfaceQuestTargets,
-		ComposeSurfaceQuestTarget a_composeSurfaceQuestTarget,
-		bool a_surfaceRefreshValidated) noexcept;
+		ComposeSurfaceQuestTarget a_composeSurfaceQuestTarget) noexcept;
 
 	[[nodiscard]] bool CaptureAndComposeSurfaceQuestTarget(void* a_context, void* a_target) noexcept;
 	void BuildAndSnapshot(RE::StarMap::SurfaceMapState* a_surfaceState) noexcept;
