@@ -7,6 +7,93 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 	{
 		constexpr auto kLargeQuestMarkerType = RE::StarMap::SurfaceMarkerType::kQuest;
 
+		struct CursorPosition
+		{
+			double x{};
+			double y{};
+		};
+
+		[[nodiscard]] std::optional<double> ReadGFxNumber(
+			const RE::Scaleform::GFx::Value& a_value) noexcept
+		{
+			if (a_value.IsNumber())
+			{
+				const double value = a_value.GetNumber();
+				return std::isfinite(value) ? std::optional{value} : std::nullopt;
+			}
+			if (a_value.IsInt())
+			{
+				return static_cast<double>(a_value.GetInt());
+			}
+			if (a_value.IsUInt())
+			{
+				return static_cast<double>(a_value.GetUInt());
+			}
+			return std::nullopt;
+		}
+
+		[[nodiscard]] std::optional<CursorPosition> ReadCursorPosition(
+			const RE::Scaleform::GFx::Value& a_displayObject)
+		{
+			RE::Scaleform::GFx::Value stage;
+			RE::Scaleform::GFx::Value mouseXValue;
+			RE::Scaleform::GFx::Value mouseYValue;
+			if (!a_displayObject.IsObject() ||
+				!a_displayObject.GetMember("stage", std::addressof(stage)) ||
+				!stage.IsObject() ||
+				!stage.GetMember("mouseX", std::addressof(mouseXValue)) ||
+				!stage.GetMember("mouseY", std::addressof(mouseYValue)))
+			{
+				return std::nullopt;
+			}
+
+			const auto mouseX = ReadGFxNumber(mouseXValue);
+			const auto mouseY = ReadGFxNumber(mouseYValue);
+			if (!mouseX || !mouseY)
+			{
+				return std::nullopt;
+			}
+			return CursorPosition{.x = *mouseX, .y = *mouseY};
+		}
+
+		[[nodiscard]] std::optional<bool> HitTest(
+			RE::Scaleform::GFx::Value& a_displayObject,
+			const CursorPosition& a_cursor)
+		{
+			std::array<RE::Scaleform::GFx::Value, 3> arguments{
+				RE::Scaleform::GFx::Value{a_cursor.x},
+				RE::Scaleform::GFx::Value{a_cursor.y},
+				RE::Scaleform::GFx::Value{true}
+			};
+			RE::Scaleform::GFx::Value result;
+			if (!a_displayObject.Invoke(
+					"hitTestPoint",
+					std::addressof(result),
+					arguments.data(),
+					arguments.size()) ||
+				!result.IsBoolean())
+			{
+				return std::nullopt;
+			}
+			return result.GetBoolean();
+		}
+
+		[[nodiscard]] bool IgnoresMouseInput(
+			const RE::Scaleform::GFx::Value& a_displayObject)
+		{
+			bool mouseEnabled{};
+			bool mouseChildren{};
+			return StarMapSelection::Detail::ReadGFxBooleanMember(
+					a_displayObject,
+					"mouseEnabled",
+					mouseEnabled) &&
+				StarMapSelection::Detail::ReadGFxBooleanMember(
+					a_displayObject,
+					"mouseChildren",
+					mouseChildren) &&
+				!mouseEnabled && !mouseChildren;
+		}
+
 		[[nodiscard]] std::optional<bool> ReadGFxNestedVisible(
 			const RE::Scaleform::GFx::Value& a_object,
 			const std::string_view a_memberName)
@@ -72,6 +159,14 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 				return std::nullopt;
 			}
 
+			const auto cursor = ReadCursorPosition(markers);
+			if (!cursor)
+			{
+				logger::debug(
+					"Select release preserved vanilla: Surface Map cursor position unavailable");
+				return std::nullopt;
+			}
+
 			const auto childCount = static_cast<std::size_t>(*childCountValueUnsigned);
 			for (std::size_t reverseIndex = childCount; reverseIndex > 0; --reverseIndex)
 			{
@@ -97,7 +192,20 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 						child,
 						"visible",
 						childVisible) ||
-					!childVisible)
+					!childVisible || IgnoresMouseInput(child))
+				{
+					continue;
+				}
+
+				const auto hit = HitTest(child, *cursor);
+				if (!hit)
+				{
+					logger::debug(
+						"Select release preserved vanilla: hitTestPoint failed (index={})",
+						index);
+					return std::nullopt;
+				}
+				if (!*hit)
 				{
 					continue;
 				}
@@ -108,12 +216,15 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 					ReadGFxNestedVisible(child, "Nameplate_mc").value_or(false);
 				if (!questTargetVisible && !nameplateVisible)
 				{
-					continue;
+					logger::debug(
+						"Select release preserved vanilla: topmost hit Surface Map object is not a quest marker (index={})",
+						index);
+					return std::nullopt;
 				}
 
-				// SurfaceMarkerContainer moves CurrentHoveredMarker to the top of the
-				// display list. Reverse order therefore selects the same marker vanilla
-				// will dispatch, even when a large nameplate overlaps a smaller marker.
+				// SurfaceMarkerContainer moves hovered markers to the top of the display
+				// list. Reverse order plus a stage-coordinate hit test rejects stale
+				// labels and preserves vanilla clicks on waypoints and other markers.
 				bool hasQuestTarget{};
 				bool hasActiveQuest{};
 				bool isLocation{};
@@ -234,7 +345,7 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 			}
 
 			logger::debug(
-				"Select release preserved vanilla: no visible hovered marker label among {} direct children",
+				"Select release preserved vanilla: no Surface Map object under the cursor among {} direct children",
 				childCount);
 			return std::nullopt;
 		}

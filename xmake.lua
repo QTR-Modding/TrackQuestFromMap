@@ -22,7 +22,7 @@ includes(commonlibsf)
 
 local plugin_name = "TrackQuestFromMap"
 local dll_name = "TrackQuestFromMarker"
-local plugin_version = "0.3.2"
+local plugin_version = "0.3.3"
 local plugin_author = "Quantumyilmaz"
 
 set_project(plugin_name)
