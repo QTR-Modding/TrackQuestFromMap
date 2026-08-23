@@ -1,5 +1,3 @@
-#include "StarMapSelection.h"
-
 #include "GalaxyMapSelection.h"
 #include "SurfaceMapSelection.h"
 

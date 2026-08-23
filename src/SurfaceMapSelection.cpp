@@ -1,5 +1,3 @@
-#include "SurfaceMapSelection.h"
-
 #include "StarMapSelectionUtil.h"
 #include "SurfaceMap.h"
 

@@ -1,7 +1,5 @@
 #pragma once
 
-#include "RE/T/TESQuest.h"
-
 namespace TrackQuestFromMap::QuestTracking
 {
 	enum class Source : std::uint8_t

@@ -1,5 +1,4 @@
 #include "GalaxyMapSelection.h"
-
 #include "GalaxyMap.h"
 #include "StarMapSelectionUtil.h"
 
