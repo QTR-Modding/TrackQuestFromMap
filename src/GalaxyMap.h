@@ -15,19 +15,10 @@ namespace TrackQuestFromMap::GalaxyMap
 		std::string questTargetText;
 	};
 
-	struct InsertResult
-	{
-		void* node{};
-		bool inserted{};
-		std::byte pad009[0x7]{};
-	};
-
-	static_assert(sizeof(InsertResult) == 0x10);
-
 	using BuildQuestTargetTree = void (*)(void*, void*);
 	using ComposeQuestTargetMarker = bool (*)(void*, void*);
 	using InsertQuestTargetMarker = void* (*)(void*,
-	                                          InsertResult*,
+	                                          RE::StarMap::QuestTargetMarkerInsertResult*,
 	                                          RE::StarMap::QuestTargetMarkerData*);
 
 	void SetOriginalFunctions(
@@ -39,7 +30,7 @@ namespace TrackQuestFromMap::GalaxyMap
 	[[nodiscard]] bool CaptureAndComposeQuestTargetMarker(void* a_context, void* a_target) noexcept;
 	[[nodiscard]] void* CaptureInsertedQuestTargetMarker(
 		void* a_nestedTree,
-		InsertResult* a_result,
+		RE::StarMap::QuestTargetMarkerInsertResult* a_result,
 		RE::StarMap::QuestTargetMarkerData* a_markerData) noexcept;
 	[[nodiscard]] bool TryActivate(const Request& a_request);
 }

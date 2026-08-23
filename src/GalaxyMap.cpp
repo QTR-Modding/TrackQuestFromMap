@@ -286,7 +286,7 @@ namespace TrackQuestFromMap::GalaxyMap
 
 	void* CaptureInsertedQuestTargetMarker(
 		void* const a_nestedTree,
-		InsertResult* const a_result,
+		RE::StarMap::QuestTargetMarkerInsertResult* const a_result,
 		RE::StarMap::QuestTargetMarkerData* const a_markerData) noexcept
 	{
 		if (!originalInsertQuestTargetMarker)
