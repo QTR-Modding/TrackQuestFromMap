@@ -13,6 +13,12 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 			double y{};
 		};
 
+		struct SelectedQuestMarker
+		{
+			SurfaceMap::Request request;
+			RE::Scaleform::GFx::Value displayObject;
+		};
+
 		[[nodiscard]] std::optional<double> ReadGFxNumber(
 			const RE::Scaleform::GFx::Value& a_value) noexcept
 		{
@@ -113,7 +119,7 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 			return visible;
 		}
 
-		[[nodiscard]] std::optional<SurfaceMap::Request> FindHoveredQuestMarker(
+		[[nodiscard]] std::optional<SelectedQuestMarker> FindHoveredQuestMarker(
 			const RE::Scaleform::GFx::Value& a_hostRoot)
 		{
 			RE::Scaleform::GFx::Value surfaceMap;
@@ -341,13 +347,58 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 					candidate.nameText.size(),
 					candidate.extraText.size(),
 					candidate.questTargetText.size());
-				return candidate;
+				return SelectedQuestMarker{
+					.request = std::move(candidate),
+					.displayObject = std::move(child)
+				};
 			}
 
 			logger::debug(
 				"Select release preserved vanilla: no Surface Map object under the cursor among {} direct children",
 				childCount);
 			return std::nullopt;
+		}
+
+		void ShowQuestMarkerAsActive(SelectedQuestMarker& a_selection)
+		{
+			RE::Scaleform::GFx::Value markerData;
+			const RE::Scaleform::GFx::Value active{true};
+			if (!a_selection.displayObject.GetMember(
+					"MarkerData",
+					std::addressof(markerData)) ||
+				!markerData.IsObject() ||
+				!markerData.SetMember("bQuestActive", active))
+			{
+				logger::debug("Queued Surface Map quest marker could not update its active state");
+				return;
+			}
+
+			if (a_selection.request.markerType ==
+					static_cast<std::uint16_t>(kLargeQuestMarkerType) &&
+				!a_selection.request.isLocation)
+			{
+				RE::Scaleform::GFx::Value argument{true};
+				if (!a_selection.displayObject.Invoke("ClearLocation") ||
+					!a_selection.displayObject.Invoke(
+						"SetQuestLocation",
+						nullptr,
+						std::addressof(argument),
+						1))
+				{
+					logger::debug("Queued Surface Map quest marker could not repaint its icon");
+				}
+				return;
+			}
+
+			RE::Scaleform::GFx::Value objective;
+			if (!a_selection.displayObject.GetMember(
+					"ObjectiveAtPOI_mc",
+					std::addressof(objective)) ||
+				!objective.IsDisplayObject() ||
+				!objective.GotoAndStop("Active"))
+			{
+				logger::debug("Queued Surface Map quest marker could not repaint its objective");
+			}
 		}
 	}
 
@@ -369,7 +420,13 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 
 	bool TryActivateHoveredQuestMarker(RE::Scaleform::GFx::Value& a_hostRoot)
 	{
-		const auto request = FindHoveredQuestMarker(a_hostRoot);
-		return request && SurfaceMap::TryActivate(*request);
+		auto selection = FindHoveredQuestMarker(a_hostRoot);
+		if (!selection || !SurfaceMap::TryActivate(selection->request))
+		{
+			return false;
+		}
+
+		ShowQuestMarkerAsActive(*selection);
+		return true;
 	}
 }
