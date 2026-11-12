@@ -44,6 +44,7 @@ add_rules("plugin.vsxmake.autoupdate")
 
 target(dll_name)
     set_kind("shared")
+    add_rules("sf1sdk.plugin")
     add_deps("SF1SDK")
     add_packages("spdlog")
     local major, minor, patch = plugin_version:match("^(%d+)%.(%d+)%.(%d+)$")
