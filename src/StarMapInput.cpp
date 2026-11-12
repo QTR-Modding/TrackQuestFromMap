@@ -2,6 +2,8 @@
 
 #include "StarMapSelection.h"
 
+#include <cmath>
+
 namespace TrackQuestFromMap::StarMapInput
 {
 	namespace
@@ -27,17 +29,14 @@ namespace TrackQuestFromMap::StarMapInput
 				return false;
 			}
 
-			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME};
-			const auto menu = ui->GetMenu(menuName);
-			const auto starMapMenu = menu
-				? starfield_cast<RE::StarMap::StarMapMenu*>(menu.get())
-				: nullptr;
+			const auto menu = ui->GetMenu(RE::StarMap::StarMapMenu::MENU_NAME);
+			const auto starMapMenu = RE::StarMap::StarMapMenu::FromMenu(menu.get());
 			if (!starMapMenu)
 			{
 				logger::debug("Select preserved vanilla: Star Map menu unavailable");
 				return false;
 			}
-			if (static_cast<RE::BSInputEventUser*>(starMapMenu) != a_user)
+			if (starMapMenu->GetInputEventUser() != a_user)
 			{
 				logger::debug("Select preserved vanilla: input recipient mismatch");
 				return false;
@@ -74,7 +73,7 @@ namespace TrackQuestFromMap::StarMapInput
 			}
 
 			const auto& userEvent = a_event->QUserEvent();
-			return std::string_view{userEvent.c_str(), userEvent.length()} == kSelectUserEvent;
+			return userEvent.view() == kSelectUserEvent;
 		}
 
 		[[nodiscard]] bool TryHandleStarMapSelect(

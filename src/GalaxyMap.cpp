@@ -1,6 +1,10 @@
 #include "GalaxyMap.h"
 #include "QuestTracking.h"
 
+#include <atomic>
+#include <cstring>
+#include <mutex>
+
 namespace TrackQuestFromMap::GalaxyMap
 {
 	namespace
@@ -115,7 +119,7 @@ namespace TrackQuestFromMap::GalaxyMap
 					.quest = captured.quest,
 					.questTargetText = std::string{
 						captured.questTargetText.c_str(),
-						captured.questTargetText.length()
+						captured.questTargetText.size()
 					},
 					.questActive = captured.questActive
 				});
@@ -178,11 +182,8 @@ namespace TrackQuestFromMap::GalaxyMap
 				return;
 			}
 
-			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME};
-			const auto menu = ui->GetMenu(menuName);
-			const auto starMapMenu = menu
-				? starfield_cast<RE::StarMap::StarMapMenu*>(menu.get())
-				: nullptr;
+			const auto menu = ui->GetMenu(RE::StarMap::StarMapMenu::MENU_NAME);
+			const auto starMapMenu = RE::StarMap::StarMapMenu::FromMenu(menu.get());
 			if (!starMapMenu)
 			{
 				logger::warn("Skipped Star Map refresh: unexpected menu type");
@@ -311,7 +312,7 @@ namespace TrackQuestFromMap::GalaxyMap
 			captured.quest = activeContributor;
 			if (a_markerData->questActive <= 1 &&
 				captured.systemLocationID != 0 && captured.bodyLocationID != 0 &&
-				a_markerData->questTargetText.length() <= kMaximumQuestTargetTextBytes)
+				a_markerData->questTargetText.size() <= kMaximumQuestTargetTextBytes)
 			{
 				captured.questTargetText = a_markerData->questTargetText;
 				captured.questActive = a_markerData->questActive == 1;
