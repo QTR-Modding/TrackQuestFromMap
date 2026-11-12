@@ -9,7 +9,7 @@ namespace TrackQuestFromMap::SurfaceMapSelection
 
 		[[nodiscard]] std::optional<bool> ReadGFxNestedVisible(
 			const RE::Scaleform::GFx::Value& a_object,
-			const std::string_view a_memberName)
+			const char* a_memberName)
 		{
 			if (!a_object.IsObject())
 			{

@@ -1,6 +1,10 @@
 #include "SurfaceMap.h"
 #include "QuestTracking.h"
 
+#include <cstring>
+#include <limits>
+#include <mutex>
+
 namespace TrackQuestFromMap::SurfaceMap
 {
 	namespace
@@ -168,7 +172,7 @@ namespace TrackQuestFromMap::SurfaceMap
 		[[nodiscard]] std::optional<std::string> CopyNativeText(
 			const RE::BSFixedString& a_text)
 		{
-			const auto length = static_cast<std::size_t>(a_text.length());
+			const auto length = static_cast<std::size_t>(a_text.size());
 			if (length > kMaximumQuestTargetTextBytes)
 			{
 				return std::nullopt;
@@ -185,7 +189,7 @@ namespace TrackQuestFromMap::SurfaceMap
 				return copied;
 			}
 
-			const auto& markers = a_surfaceState->surfaceMarkers;
+			const auto& markers = a_surfaceState->GetMarkers();
 			const auto markerBegin = reinterpret_cast<std::uintptr_t>(markers.begin());
 			const auto markerEnd = reinterpret_cast<std::uintptr_t>(markers.end());
 			const auto markerCapacity =
@@ -291,11 +295,8 @@ namespace TrackQuestFromMap::SurfaceMap
 				return;
 			}
 
-			const RE::BSFixedString menuName{RE::StarMap::StarMapMenu::MENU_NAME};
-			const auto menu = ui->GetMenu(menuName);
-			const auto starMapMenu = menu
-				? starfield_cast<RE::StarMap::StarMapMenu*>(menu.get())
-				: nullptr;
+			const auto menu = ui->GetMenu(RE::StarMap::StarMapMenu::MENU_NAME);
+			const auto starMapMenu = RE::StarMap::StarMapMenu::FromMenu(menu.get());
 			if (!starMapMenu)
 			{
 				logger::warn("Skipped Surface Map refresh: unexpected menu type");
@@ -437,12 +438,26 @@ namespace TrackQuestFromMap::SurfaceMap
 	namespace
 	{
 
+		template <class T>
+		class RestoreValue
+		{
+		public:
+			RestoreValue(T& value, std::type_identity_t<T> next) noexcept :
+				_value(value), _previous(std::exchange(value, next))
+			{}
+
+			~RestoreValue() { _value = _previous; }
+			RestoreValue(const RestoreValue&) = delete;
+			RestoreValue& operator=(const RestoreValue&) = delete;
+
+		private:
+			T& _value;
+			T _previous;
+		};
+
 		void BuildAndSnapshotImpl(RE::StarMap::SurfaceMapState* a_surfaceState)
 		{
-			++surfaceGatherDepth;
-			const REX::TScopeExit restoreGatherDepth{
-				[]() noexcept { --surfaceGatherDepth; }
-			};
+			const RestoreValue restoreGatherDepth{surfaceGatherDepth, surfaceGatherDepth + 1};
 
 			// This state is owner-thread-only and non-reentrant. Suppress every nested
 			// capture and only let the true outermost call reset or publish a generation.
@@ -452,10 +467,7 @@ namespace TrackQuestFromMap::SurfaceMap
 				{
 					outerCapture->invalidInvocation = true;
 				}
-				auto* const previousCapture = std::exchange(activeQuestCapture, nullptr);
-				const REX::TScopeExit restoreCapture{
-					[previousCapture]() noexcept { activeQuestCapture = previousCapture; }
-				};
+				const RestoreValue restoreCapture{activeQuestCapture, nullptr};
 				originalGatherSurfaceQuestTargets(a_surfaceState);
 				return;
 			}
@@ -465,11 +477,7 @@ namespace TrackQuestFromMap::SurfaceMap
 			PublishCache({});
 			threadQuestCapture.Reset();
 			{
-				auto* const previousCapture =
-					std::exchange(activeQuestCapture, std::addressof(threadQuestCapture));
-				const REX::TScopeExit restoreCapture{
-					[previousCapture]() noexcept { activeQuestCapture = previousCapture; }
-				};
+				const RestoreValue restoreCapture{activeQuestCapture, std::addressof(threadQuestCapture)};
 				originalGatherSurfaceQuestTargets(a_surfaceState);
 			}
 

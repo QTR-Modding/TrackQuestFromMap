@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cmath>
+#include <limits>
+
 namespace TrackQuestFromMap::StarMapSelection::Detail
 {
 	constexpr std::size_t kMaximumUIChildren = 4096;
@@ -34,7 +37,7 @@ namespace TrackQuestFromMap::StarMapSelection::Detail
 
 	[[nodiscard]] inline bool ReadGFxBooleanMember(
 		const RE::Scaleform::GFx::Value& a_object,
-		const std::string_view a_name,
+		const char* a_name,
 		bool& a_result)
 	{
 		if (!a_object.IsObject())
@@ -52,7 +55,7 @@ namespace TrackQuestFromMap::StarMapSelection::Detail
 
 	[[nodiscard]] inline bool ReadGFxStringMember(
 		const RE::Scaleform::GFx::Value& a_object,
-		const std::string_view a_name,
+		const char* a_name,
 		std::string& a_result)
 	{
 		if (!a_object.IsObject())
